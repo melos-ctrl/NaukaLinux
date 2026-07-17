@@ -1,16 +1,15 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router' // dodanie routera
+import { useRouter } from 'vue-router'
 
 const username = ref('')
 const password = ref('')
 const message = ref('')
 
-const router = useRouter() // inicjalizacja routera
+const router = useRouter()
 
 const handleLogin = async () => {
   try {
-    // Uwaga: Endpoint /login musimy jeszcze napisać w C#!
     const response = await fetch('http://localhost:5042/api/auth/login', {
       method: 'POST',
       headers: {
@@ -25,7 +24,7 @@ const handleLogin = async () => {
     if (response.ok) {
 
       const data = await response.json()
-      localStorage.setItem('token', data.token) // zakładamy, że backend zwraca token w polu
+      localStorage.setItem('token', data.token) 
 
       router.push('/lesson')
     } else {
@@ -51,7 +50,7 @@ const handleLogin = async () => {
         <label for="password" class="text-floral-white">Hasło</label>
         <input v-model="password" class="bg-carbon-black border border-silver rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-spicy-paprika text-floral-white" type="password" id="password" required>
 
-        <button type="submit" class="bg-spicy-paprika text-floral-white px-4 py-2 rounded mt-4 hover:bg-blue-600 transition">Zaloguj się</button>
+        <button type="submit" class="bg-spicy-paprika text-floral-white px-4 py-2 rounded mt-4 hover:bg-floral-white hover:text-charcoal-brown transition">Zaloguj się</button>
       </form>
 
       <p v-if="message" class="mt-4 text-center font-bold text-floral-white">{{ message }}</p>

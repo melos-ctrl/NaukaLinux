@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-// Zmienne przechowujące to, co użytkownik wpisuje
+
 const email = ref('')
 const username = ref('')
 const password = ref('')
 const confirmPassword = ref('')
-const message = ref('') // Do wyświetlania błędów lub sukcesu
+const message = ref('')
 
 const handleRegister = async () => {
-  // Prosta walidacja na froncie
   if (password.value !== confirmPassword.value) {
     message.value = 'Hasła nie są identyczne!'
     return
@@ -30,7 +29,6 @@ const handleRegister = async () => {
 
     if (response.ok) {
       message.value = 'Rejestracja udana! Możesz się teraz zalogować.'
-      // Tutaj w przyszłości zrobimy przekierowanie na stronę logowania (np. vue-router)
     } else {
       const errorText = await response.text()
       message.value = `Błąd: ${errorText}`
@@ -61,7 +59,7 @@ const handleRegister = async () => {
         <label for="confirmPassword" class="text-floral-white">Powtórz Hasło</label>
         <input v-model="confirmPassword" class="bg-carbon-black border border-silver rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-spicy-paprika text-floral-white" type="password" id="confirmPassword" required>
 
-        <button type="submit" class="bg-spicy-paprika text-floral-white px-4 py-2 rounded mt-4 hover:bg-blue-600 transition">Zarejestruj się</button>
+        <button type="submit" class="bg-spicy-paprika text-floral-white px-4 py-2 rounded mt-4 hover:bg-floral-white hover:text-charcoal-brown  transition">Zarejestruj się</button>
       </form>
 
       <p v-if="message" class="mt-4 text-center font-bold text-red-500">{{ message }}</p>
