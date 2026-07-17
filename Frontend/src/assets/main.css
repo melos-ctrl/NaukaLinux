@@ -1,0 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* Twoje własne kolory w nowym formacie v4 */
+  --color-floral-white: #fffcf2;
+  --color-silver: #ccc5b9;
+  --color-charcoal-brown: #403d39;
+  --color-carbon-black: #252422;
+  --color-spicy-paprika: #eb5e28;
+  
+  /* Nadpisanie domyślnej czcionki sans na Twoją */
+  --font-sans: "Inter", sans-serif;
+}

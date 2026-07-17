@@ -1,0 +1,30 @@
+=========================================
+ŚCIĄGAWKA - KOMENDY DO PROJEKTU (VUE + .NET)
+=========================================
+[0] INSTALACJA PAKIETÓW 
+-----------------------------------------
+dotnet tool install --global dotnet-ef - instalacja narzedzi EF Core
+dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer - dodanie JWT
+
+[1] BAZA DANYCH (Główny folder, przy docker-compose.yml)
+-----------------------------------------
+Włączenie bazy w tle:   docker compose up -d
+Wyłączenie bazy:        docker compose down
+
+[2] BACKEND (.NET Web API) (Folder Backend)
+-----------------------------------------
+Uruchomienie API:       dotnet run
+Tworzenie migracji:     dotnet ef migrations add NazwaMigracji
+Aktualizacja bazy:      dotnet ef database update
+
+[3] FRONTEND (Vue.js) (Folder Frontend)
+-----------------------------------------
+Uruchomienie Vite:      npm run dev
+(lub yarn dev / pnpm dev - zależy czego używasz)
+
+=========================================
+PRO-TIP DLA RIDERA:
+1. Baza: Ikona "Play" przy docker-compose.yml
+2. Backend: Prawy górny róg -> Play (Shift + F10)
+3. Frontend: package.json -> prawy klik -> "Show npm Scripts" -> podwójny klik na "dev"
+=========================================

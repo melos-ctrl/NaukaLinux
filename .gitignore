@@ -1,0 +1,19 @@
+# --- C# / .NET ---
+**/bin/
+**/obj/
+**/.idea/
+appsettings.json
+appsettings.Development.json
+*.user
+*.userosprefs
+
+# --- Vue / Node ---
+node_modules/
+dist/
+.env
+.env.*
+
+# --- Docker & Baza Danych ---
+postgres-data/
+pgdata/
+docker-compose.override.yml

@@ -1,0 +1,32 @@
+$kind: http-request
+name: Login
+method: POST
+url: 'http://localhost:5042/api/auth/login'
+order: 1000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "testuser",
+      "password": "testpassword"
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("Status code is 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      pm.test("Response contains token field", function () {
+          const jsonData = pm.response.json();
+          pm.expect(jsonData).to.have.property("token");
+      });
+
+      const jsonData = pm.response.json();
+      if (jsonData && jsonData.token) {
+          pm.environment.set("jwt_token", jsonData.token);
+      }
