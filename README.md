@@ -23,7 +23,7 @@ Platforma e-learningowa stworzona do nauki systemów z rodziny Linux i administr
 * **Baza Danych:** PostgreSQL (uruchamiany w Dockerze)
 * **Zabezpieczenia:** BCrypt (haszowanie haseł), JWT (autoryzacja i autentykacja)
 
-## 🗺️ Roadmapa Projektu (Plan Rozwoju)
+## Roadmapa Projektu (Plan Rozwoju)
 
 Projekt jest aktywnie rozwijany. Poniżej znajduje się lista ukończonych oraz planowanych funkcjonalności:
 
