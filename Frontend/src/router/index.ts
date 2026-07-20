@@ -4,6 +4,7 @@ import LoginView from '@/views/LoginView.vue';
 import RegisterView from '@/views/RegisterView.vue';
 import CoursesView from '@/views/CoursesView.vue';
 import HomeView from '@/views/HomeView.vue';
+import CourseCreatorView from '@/views/CourseCreatorView.vue';
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -31,6 +32,11 @@ const routes: Array<RouteRecordRaw> = [
     name: "home",
     component: HomeView,
   },
+  {
+    path: "/course-creator",
+    name: "course-creator",
+    component: CourseCreatorView,
+  }
 
 ]
 

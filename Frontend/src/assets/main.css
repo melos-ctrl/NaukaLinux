@@ -2,13 +2,22 @@
 @import "tailwindcss";
 
 @theme {
-  /* Twoje własne kolory w nowym formacie v4 */
+  /* kolory główne */
   --color-floral-white: #fffcf2;
   --color-silver: #ccc5b9;
   --color-charcoal-brown: #403d39;
   --color-carbon-black: #252422;
   --color-spicy-paprika: #eb5e28;
+  --color-sage: #7a8b76;
+
+  /* kolory dodatkowe */
+  --color-sky-blue: #4a90e2;
+  --color-amethyst: #9d63c9;
+  --color-soft-coral: #e57a58;
   
-  /* Nadpisanie domyślnej czcionki sans na Twoją */
+  /* Kolory do etykiet i placeholderów */
+  --color-label: #8a817c;
+  --color-placeholder: #a8a39d;
+
   --font-sans: "Inter", sans-serif;
 }
