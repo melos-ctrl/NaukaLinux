@@ -22,3 +22,25 @@ Platforma e-learningowa stworzona do nauki systemów z rodziny Linux i administr
 * **Backend:** C# / .NET 10, ASP.NET Core Web API, Entity Framework Core
 * **Baza Danych:** PostgreSQL (uruchamiany w Dockerze)
 * **Zabezpieczenia:** BCrypt (haszowanie haseł), JWT (autoryzacja i autentykacja)
+
+## 🗺️ Roadmapa Projektu (Plan Rozwoju)
+
+Projekt jest aktywnie rozwijany. Poniżej znajduje się lista ukończonych oraz planowanych funkcjonalności:
+
+### Etap 1: MVP & Zarządzanie (Zrealizowane)
+- [x] Projekt bazy danych i integracja z PostgreSQL.
+- [x] Autoryzacja i autentykacja (JWT, BCrypt).
+- [x] Obsługa ról użytkowników (Uczeń / Mentor).
+- [x] Frontend w Vue 3 z routingiem i zabezpieczeniem widoków.
+- [x] Panel Mentora i interaktywny Kreator Kursów (moduły tekstu, quizów i fiszek).
+
+### Etap 2: Nauka i Panel Ucznia (W trakcie)
+- [ ] Stworzenie głównego Panelu Ucznia (Dashboard).
+- [ ] Mechanizm śledzenia postępów (procent ukończenia kursu i poszczególnych lekcji).
+- [ ] Widok rozwiązywania lekcji (odczyt materiałów, sprawdzanie quizów, obracane fiszki).
+- [ ] Zapisywanie stanu ukończenia bloków do bazy danych (`UserProgress`).
+
+### Etap 3: Zaawansowane Funkcje
+- [ ] Integracja Wirtualnego Terminala (wykonywanie prawdziwych komend Linuxowych w przeglądarce).
+- [ ] System powiadomień w czasie rzeczywistym dla uczniów i mentorów.
+- [ ] Ocenianie kursów i komentarze pod lekcjami.
