@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import axios from 'axios'
 
 const course = ref({
   title: '',
@@ -66,9 +67,55 @@ const removeOption = (block, index) => {
 }
 
 const saveCourse = async () => {
-  // Przycisk zapisywania obecnie wyświetla sformatowanego JSON-a w konsoli przeglądarki.
-  console.log("JSON Kursu do wysłania:", JSON.stringify(course.value, null, 2))
-  alert("Zajrzyj w konsolę deweloperską (F12), aby zobaczyć gotową paczkę bloków przygotowaną do wysyłki na backend!")
+  isSaving.value = true
+  errorMessage.value = ''
+
+  try {
+    const flattenedLessons = course.value.modules.flatMap((module, mIdx) => 
+      module.lessons.map((lesson, lIdx) => ({
+        title: lesson.title,
+        orderIndex: mIdx * 100 + lIdx + 1,
+        blocks: lesson.blocks.map((block, bIdx) => {
+          let blockType = 0
+          if (block.type === 'video') blockType = 3
+          if (block.type === 'question') blockType = 1
+
+          return {
+            type: blockType,
+            orderIndex: bIdx + 1,
+            textContent: block.type === 'text' ? block.content : null,
+            videoUrl: block.type === 'video' ? block.url : null,
+            questionText: block.type === 'question' ? block.content : null,
+            options: block.type === 'question' ? block.options.map(opt => ({
+              optionText: opt.text,
+              isCorrect: opt.isCorrect
+            })) : []
+          }
+        })
+      }))
+    )
+
+    const payload = {
+      title: course.value.title,
+      description: course.value.description,
+      lessons: flattenedLessons
+    }
+
+    const token = localStorage.getItem('token')
+
+    const response = await axios.post('http://localhost:5042/api/courses', payload, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+
+    alert("Sukces! Kurs został zapisany w bazie danych.")
+  } catch (error) {
+    console.error("Błąd podczas zapisywania kursu:", error)
+    errorMessage.value = error.response?.data?.message || "Wystąpił błąd podczas zapisywania kursu."
+  } finally {
+    isSaving.value = false
+  }
 }
 </script>
 
