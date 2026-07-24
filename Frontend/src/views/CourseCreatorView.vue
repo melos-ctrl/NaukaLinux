@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import axios from 'axios'
 
 const course = ref({
+  id: null,
   title: '',
   description: '',
   modules: []
@@ -11,6 +12,7 @@ const course = ref({
 const activeElement = ref(null)
 const isSaving = ref(false)
 const errorMessage = ref('')
+const successMessage = ref('')
 
 const selectElement = (element) => {
   activeElement.value = element
@@ -66,9 +68,10 @@ const removeOption = (block, index) => {
   block.options.splice(index, 1)
 }
 
-const saveCourse = async () => {
+const saveCourseData = async (isPublished) => {
   isSaving.value = true
   errorMessage.value = ''
+  successMessage.value = ''
 
   try {
     const flattenedLessons = course.value.modules.flatMap((module, mIdx) => 
@@ -96,6 +99,8 @@ const saveCourse = async () => {
     )
 
     const payload = {
+      id: course.value.id,
+      isPublished: isPublished,
       title: course.value.title,
       description: course.value.description,
       lessons: flattenedLessons
@@ -103,13 +108,22 @@ const saveCourse = async () => {
 
     const token = localStorage.getItem('token')
 
-    const response = await axios.post('http://localhost:5042/api/courses', payload, {
+    const response = await axios.post('http://localhost:5042/api/courses/save', payload, {
       headers: {
         Authorization: `Bearer ${token}`
       }
     })
 
-    alert("Sukces! Kurs został zapisany w bazie danych.")
+    if (!course.value.id) {
+      course.value.id = response.data.id
+    }
+
+    successMessage.value = isPublished ? "Kurs został opublikowany" : "Zapisano wersję roboczą"
+    
+    setTimeout(() => {
+      successMessage.value = ''
+    }, 3000)
+
   } catch (error) {
     console.error("Błąd podczas zapisywania kursu:", error)
     errorMessage.value = error.response?.data?.message || "Wystąpił błąd podczas zapisywania kursu."
@@ -117,6 +131,9 @@ const saveCourse = async () => {
     isSaving.value = false
   }
 }
+
+const saveDraft = () => saveCourseData(false)
+const publishCourse = () => saveCourseData(true)
 </script>
 
 <template>
@@ -125,13 +142,25 @@ const saveCourse = async () => {
     <header class="sticky top-0 z-50 shrink-0 flex justify-between items-center px-6 py-4 bg-charcoal-brown text-floral-white shadow-md">
       <h1 class="text-xl font-bold tracking-wide">Kreator Kursu</h1>
       <div class="flex items-center gap-4">
-        <span v-if="errorMessage" class="text-spicy-paprika text-sm">{{ errorMessage }}</span>
+        
+        <span v-if="errorMessage" class="text-spicy-paprika text-sm font-medium">{{ errorMessage }}</span>
+        <span v-else-if="isSaving" class="text-silver text-sm font-medium animate-pulse">Zapisywanie...</span>
+        <span v-else-if="successMessage" class="text-green-400 text-sm font-medium transition-opacity duration-500">{{ successMessage }}</span>
+        
         <button 
-          @click="saveCourse" 
+          @click="saveDraft" 
+          :disabled="isSaving"
+          class="px-4 py-2 bg-silver/20 hover:bg-silver/40 disabled:opacity-50 text-floral-white font-medium rounded-lg transition-colors border border-silver ml-2"
+        >
+          Zapisz szkic
+        </button>
+
+        <button 
+          @click="publishCourse" 
           :disabled="isSaving"
           class="px-5 py-2 bg-spicy-paprika hover:bg-spicy-paprika/90 disabled:bg-silver disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors shadow-sm"
         >
-          {{ isSaving ? 'Zapisywanie...' : 'Zapisz Kurs' }}
+          Opublikuj Kurs
         </button>
       </div>
     </header>
