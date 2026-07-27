@@ -107,4 +107,68 @@ public class CoursesController : ControllerBase
             }).ToList()
         }).ToList();
     }
+
+    [HttpPost("{courseId}/enroll")]
+    public async Task<IActionResult> EnrollInCourse(int courseId)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out int userId)) 
+            return Unauthorized();
+
+        var existingEnrollment = await _context.CourseEnrollments
+            .FirstOrDefaultAsync(e => e.CourseId == courseId && e.UserId == userId);
+        
+        if (existingEnrollment == null)
+        {
+            _context.CourseEnrollments.Add(new CourseEnrollment
+            {
+                CourseId = courseId,
+                UserId = userId
+            });
+            await _context.SaveChangesAsync();
+        }
+
+        return Ok(new { message = "Zapisano na kurs pomyślnie!" });
+    }
+
+    [HttpGet("{courseId}/content")]
+    public async Task<IActionResult> GetCourseContent(int courseId)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out int userId)) 
+            return Unauthorized();
+
+        var course = await _context.Courses
+            .Include(c => c.Lessons)
+            .ThenInclude(l => l.Blocks)
+            .ThenInclude(b => b.Options)
+            .FirstOrDefaultAsync(c => c.Id == courseId);
+
+        if (course == null) return NotFound("Nie znaleziono kursu.");
+        
+        var isEnrolled = await _context.CourseEnrollments.AnyAsync(e => e.CourseId == courseId && e.UserId == userId);
+    
+        if (course.MentorId != userId && !isEnrolled)
+        {
+            return Forbid("Nie masz dostępu do tego kursu. Musisz się najpierw zapisać.");
+        }
+
+        return Ok(course);
+    }
+    
+    [HttpGet("my-courses")]
+    [Authorize]
+    public async Task<IActionResult> GetMyCourses()
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userIdString == null) return Unauthorized();
+
+        int userId = int.Parse(userIdString);
+        
+        var courses = await _context.Courses
+            .Where(c => c.MentorId == userId) 
+            .ToListAsync();
+
+        return Ok(courses);
+    }
 }

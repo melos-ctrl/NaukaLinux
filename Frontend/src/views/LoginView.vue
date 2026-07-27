@@ -22,11 +22,17 @@ const handleLogin = async () => {
     })
 
     if (response.ok) {
-
       const data = await response.json()
+      
       localStorage.setItem('token', data.token) 
+      
+      if (data.role) {
+        localStorage.setItem('role', data.role)
+      } else {
+        localStorage.setItem('role', 'student') 
+      }
 
-      router.push('/lesson')
+      router.push('/') 
     } else {
       message.value = 'Nieprawidłowy login lub hasło.'
     }
@@ -43,7 +49,6 @@ const handleLogin = async () => {
       <h1 class="text-3xl font-bold text-floral-white">Logowanie</h1>
 
       <form @submit.prevent="handleLogin" class="flex flex-col w-full max-w-sm mt-4 gap-2">
-
         <label for="username" class="text-floral-white">Nazwa użytkownika</label>
         <input v-model="username" class=" bg-carbon-black border border-silver rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-spicy-paprika text-floral-white" type="text" id="username" required>
 

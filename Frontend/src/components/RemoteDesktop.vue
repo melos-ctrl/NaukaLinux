@@ -61,14 +61,14 @@ const stopSession = async () => {
 
 <template>
   <div class="flex flex-col items-center gap-4 p-5 w-full">
-    <h2 class="text-2xl font-bold text-slate-800">Wirtualny Linux MATE (KasmVNC)</h2>
+    <h2 class="text-2xl font-bold text-charcoal-brown">Wirtualny Linux MATE (KasmVNC)</h2>
 
     <div class="flex gap-4">
       <button
         v-if="!desktopUrl"
         @click="startSession"
         :disabled="isLoading"
-        class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-slate-400 font-bold shadow-md transition-colors"
+        class="px-6 py-2 bg-spicy-paprika text-white rounded-md hover:bg-spicy-paprika/90 disabled:bg-charcoal-brown/40 font-bold shadow-md transition-colors"
       >
         {{ isLoading ? 'Klonowanie systemu...' : 'Uruchom środowisko' }}
       </button>

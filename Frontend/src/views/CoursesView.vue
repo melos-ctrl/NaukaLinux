@@ -61,8 +61,19 @@ const goToLogin = () => {
   router.push('/login')
 }
 
-const startCourse = (courseId) => {
-  alert(`Rozpoczynam kurs o ID: ${courseId}`)
+const startCourse = async (courseId) => {
+  try {
+    const token = localStorage.getItem('token')
+    const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {}
+
+    await axios.post(`http://localhost:5042/api/courses/${courseId}/enroll`, {}, config)
+
+    router.push(`/course/${courseId}`)
+    
+  } catch (error) {
+    console.error("Błąd podczas zapisu na kurs:", error)
+    alert("Nie udało się rozpocząć kursu. Upewnij się, że jesteś zalogowany.")
+  }
 }
 
 onMounted(() => {
@@ -110,7 +121,7 @@ onMounted(() => {
                 <button 
                   v-if="isLoggedIn" 
                   @click="startCourse(course.id)"
-                  class="w-full px-4 py-2 mt-auto bg-sky-blue hover:bg-sky-blue/90 text-white font-medium rounded-lg transition-colors shadow-sm"
+                  class="w-full px-4 py-2 mt-auto bg-charcoal-brown hover:bg-spicy-paprika text-white font-medium rounded-lg transition-colors shadow-sm"
                 >
                   Rozpocznij naukę
                 </button>

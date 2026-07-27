@@ -1,6 +1,10 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
+
+const route = useRoute()
+const router = useRouter()
 
 const course = ref({
   id: null,
@@ -9,6 +13,7 @@ const course = ref({
   modules: []
 })
 
+const isEditing = ref(false)
 const activeElement = ref(null)
 const isSaving = ref(false)
 const errorMessage = ref('')
@@ -68,6 +73,67 @@ const removeOption = (block, index) => {
   block.options.splice(index, 1)
 }
 
+// pobierania danych do edycji kursu, jeśli jest to edycja istniejącego kursu
+const fetchCourseForEditing = async (id) => {
+  try {
+    const token = localStorage.getItem('token')
+    const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {}
+    
+    const response = await axios.get(`http://localhost:5042/api/courses/${id}/content`, config)
+    const data = response.data
+    
+    isEditing.value = true
+    course.value.id = data.id || id
+    course.value.title = data.title
+    course.value.description = data.description
+
+    // odtoworzenie modułów i lekcji z danych backendu
+    if (data.lessons && data.lessons.length > 0) {
+      const loadedModule = {
+        type: 'module',
+        title: 'Lekcje kursu',
+        lessons: data.lessons.map(lesson => ({
+          type: 'lesson',
+          title: lesson.title,
+          blocks: lesson.blocks.map(block => {
+            //mapowanie typów z backendu na typy w UI
+            let uiType = 'text'
+            if (block.type === 3) uiType = 'video'
+            if (block.type === 1) uiType = 'question'
+
+            return {
+              type: uiType,
+              content: block.textContent || block.questionText || '',
+              url: block.videoUrl || '',
+              questionType: 'MultipleChoice', 
+              options: block.options && block.options.length > 0 ? block.options.map(opt => ({
+                text: opt.optionText,
+                isCorrect: opt.isCorrect
+              })) : [ { text: '', isCorrect: false }, { text: '', isCorrect: false } ]
+            }
+          })
+        }))
+      }
+      course.value.modules = [loadedModule]
+    }
+  } catch (error) {
+    console.error("Błąd pobierania kursu:", error)
+    errorMessage.value = "Nie udało się załadować kursu."
+  }
+}
+
+// sprawdzenie czy mamy id
+onMounted(() => {
+  const courseId = route.params.id
+  if (courseId) {
+    fetchCourseForEditing(courseId)
+  } else {
+    // jeśli nie ma id, to jest nowy kurs, więc inicjalizujemy z jednym modułem
+    addModule()
+  }
+})
+
+// funkcja do zapisywania kursu (zarówno wersji roboczej jak i publikacji)
 const saveCourseData = async (isPublished) => {
   isSaving.value = true
   errorMessage.value = ''
@@ -107,18 +173,18 @@ const saveCourseData = async (isPublished) => {
     }
 
     const token = localStorage.getItem('token')
+    const config = { headers: { Authorization: `Bearer ${token}` } }
 
-    const response = await axios.post('http://localhost:5042/api/courses/save', payload, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-
+    // Niezależnie czy to nowy kurs, czy edycja, wysyłamy POST na /save
+    const response = await axios.post('http://localhost:5042/api/courses/save', payload, config)
+    
     if (!course.value.id) {
       course.value.id = response.data.id
+      isEditing.value = true 
+      router.replace(`/course-creator/${course.value.id}`)
     }
 
-    successMessage.value = isPublished ? "Kurs został opublikowany" : "Zapisano wersję roboczą"
+    successMessage.value = isPublished ? "Kurs został opublikowany!" : "Zapisano wersję roboczą!"
     
     setTimeout(() => {
       successMessage.value = ''
@@ -126,7 +192,7 @@ const saveCourseData = async (isPublished) => {
 
   } catch (error) {
     console.error("Błąd podczas zapisywania kursu:", error)
-    errorMessage.value = error.response?.data?.message || "Wystąpił błąd podczas zapisywania kursu."
+    errorMessage.value = error.response?.data?.message || "Wystąpił błąd podczas zapisywania."
   } finally {
     isSaving.value = false
   }
@@ -140,11 +206,13 @@ const publishCourse = () => saveCourseData(true)
   <div class="flex flex-col h-screen bg-floral-white text-charcoal-brown font-sans">
     
     <header class="sticky top-0 z-50 shrink-0 flex justify-between items-center px-6 py-4 bg-charcoal-brown text-floral-white shadow-md">
-      <h1 class="text-xl font-bold tracking-wide">Kreator Kursu</h1>
+      <h1 class="text-xl font-bold tracking-wide">
+        {{ isEditing ? 'Edytor Kursu' : 'Kreator Kursu' }}
+      </h1>
       <div class="flex items-center gap-4">
         
         <span v-if="errorMessage" class="text-spicy-paprika text-sm font-medium">{{ errorMessage }}</span>
-        <span v-else-if="isSaving" class="text-silver text-sm font-medium animate-pulse">Zapisywanie...</span>
+        <span v-else-if="isSaving" class="text-silver text-sm font-medium animate-pulse">Zapisywanie</span>
         <span v-else-if="successMessage" class="text-green-400 text-sm font-medium transition-opacity duration-500">{{ successMessage }}</span>
         
         <button 
@@ -152,7 +220,7 @@ const publishCourse = () => saveCourseData(true)
           :disabled="isSaving"
           class="px-4 py-2 bg-silver/20 hover:bg-silver/40 disabled:opacity-50 text-floral-white font-medium rounded-lg transition-colors border border-silver ml-2"
         >
-          Zapisz szkic
+          Zapisz wersję roboczą
         </button>
 
         <button 
@@ -160,7 +228,7 @@ const publishCourse = () => saveCourseData(true)
           :disabled="isSaving"
           class="px-5 py-2 bg-spicy-paprika hover:bg-spicy-paprika/90 disabled:bg-silver disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors shadow-sm"
         >
-          Opublikuj Kurs
+          {{ isEditing ? 'Zapisz zmiany (Publikuj)' : 'Opublikuj Kurs' }}
         </button>
       </div>
     </header>

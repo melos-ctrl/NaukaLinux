@@ -68,7 +68,7 @@ public class AuthController : ControllerBase
             return BadRequest("Invalid Email or password.");
         }
         var token = CreateToken(user);
-        return Ok(new { Message = "Login successful!", Token = token });
+        return Ok(new { Message = "Login successful!", Token = token, Role = user.Role });
     }
 
     private string CreateToken(User user)

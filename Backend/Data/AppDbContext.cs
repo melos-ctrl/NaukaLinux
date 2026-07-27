@@ -15,4 +15,5 @@ public class AppDbContext : DbContext
     public DbSet<Lesson> Lessons { get; set; }
     public DbSet<ControlQuestion> ControlQuestions { get; set; }
     public DbSet<QuestionOption> QuestionOptions { get; set; }
+    public DbSet<CourseEnrollment> CourseEnrollments { get; set; }
 }

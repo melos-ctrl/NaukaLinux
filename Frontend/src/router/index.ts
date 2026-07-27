@@ -5,11 +5,12 @@ import RegisterView from '@/views/RegisterView.vue';
 import CoursesView from '@/views/CoursesView.vue';
 import HomeView from '@/views/HomeView.vue';
 import CourseCreatorView from '@/views/CourseCreatorView.vue';
+import MentorDashboardView from '@/views/MentorDashboardView.vue';
 
 const routes: Array<RouteRecordRaw> = [
   {
-    path: "/lesson",
-    name: "lesson",
+    path: "/course/:id",
+    name: "course-player",
     component: LessonView,
   },
   {
@@ -36,6 +37,16 @@ const routes: Array<RouteRecordRaw> = [
     path: "/course-creator",
     name: "course-creator",
     component: CourseCreatorView,
+  },
+  {
+    path: "/course-creator/:id",
+    name: "course-editor",
+    component: CourseCreatorView,
+  },
+  {
+    path: "/Mentor-Dashboard",
+    name: "mentor-dashboard",
+    component: MentorDashboardView,
   }
 
 ]
