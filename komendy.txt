@@ -28,3 +28,6 @@ PRO-TIP DLA RIDERA:
 2. Backend: Prawy górny róg -> Play (Shift + F10)
 3. Frontend: package.json -> prawy klik -> "Show npm Scripts" -> podwójny klik na "dev"
 =========================================
+
+docker build -t naukalinux-xfce .  - > dodanie własnego zmodyfikowanego linucha
+docker network create --opt com.docker.network.bridge.enable_icc=false students_network - blokada sieci do sieci matki

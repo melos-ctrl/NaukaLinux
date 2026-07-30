@@ -39,7 +39,7 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod();
     });
 });
-
+builder.Services.AddHostedService<Backend.Service.ContainerHeartBeatCleanUpService>();
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())

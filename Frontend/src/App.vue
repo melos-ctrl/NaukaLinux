@@ -30,6 +30,8 @@ const logout = () => {
   userRole.value = '';
   isDropdownOpen.value = false;
   router.push('/login');
+  localStorage.removeItem('activeContainerId');
+  localStorage.removeItem('desktopUrl');
 }
 
 onMounted(() => { document.addEventListener('click', isDropdownClosed); });

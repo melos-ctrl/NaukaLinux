@@ -1,11 +1,28 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 const desktopUrl = ref<string | null>(null)
 const activeContainerId = ref<string | null>(null)
 const isLoading = ref(false)
 
+let heartbeatInterval: any = null
+
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+const startHeartbeat = (id: string) => {
+  stopHeartbeat()
+  heartbeatInterval = setInterval(() => {
+    fetch(`http://localhost:5042/api/virtualdesktop/heartbeat?ContainerId=${id}`, { method: 'POST' })
+      .catch(error => console.error(error))
+  }, 30000)
+}
+
+const stopHeartbeat = () => {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval)
+    heartbeatInterval = null
+  }
+}
 
 onMounted(() => {
   const savedUrl = localStorage.getItem('desktopUrl')
@@ -14,8 +31,12 @@ onMounted(() => {
   if (savedUrl && savedContainerId) {
     desktopUrl.value = savedUrl
     activeContainerId.value = savedContainerId
-    console.log("Przywrócono sesję Ubuntu:", savedContainerId)
+    startHeartbeat(savedContainerId)
   }
+})
+
+onUnmounted(() => {
+  stopHeartbeat()
 })
 
 const startSession = async () => {
@@ -30,13 +51,15 @@ const startSession = async () => {
       activeContainerId.value = data.containerId
       localStorage.setItem('activeContainerId', data.containerId)
 
-      await delay(10000)
+      startHeartbeat(data.containerId)
+
+      await delay(8000)
 
       desktopUrl.value = data.connectionUrl
       localStorage.setItem('desktopUrl', data.connectionUrl)
     }
   } catch (error) {
-    console.error('Błąd podczas tworzenia pulpitu:', error)
+    console.error(error)
   } finally {
     isLoading.value = false
   }
@@ -47,14 +70,16 @@ const stopSession = async () => {
 
   try {
     await fetch(`http://localhost:5042/api/virtualdesktop/stop?ContainerId=${activeContainerId.value}`, { method: 'POST' })
-
+    
+    stopHeartbeat()
+    
     desktopUrl.value = null
     activeContainerId.value = null
 
     localStorage.removeItem('activeContainerId')
     localStorage.removeItem('desktopUrl')
   } catch (error) {
-    console.error('Błąd podczas zamykania:', error)
+    console.error(error)
   }
 }
 </script>
