@@ -79,7 +79,7 @@ const fetchCourseForEditing = async (id) => {
     const token = localStorage.getItem('token')
     const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {}
     
-    const response = await axios.get(`http://localhost:5042/api/courses/${id}/content`, config)
+    const response = await axios.get(`/api/courses/${id}/content`, config)
     const data = response.data
     
     isEditing.value = true
@@ -176,7 +176,7 @@ const saveCourseData = async (isPublished) => {
     const config = { headers: { Authorization: `Bearer ${token}` } }
 
     // Niezależnie czy to nowy kurs, czy edycja, wysyłamy POST na /save
-    const response = await axios.post('http://localhost:5042/api/courses/save', payload, config)
+    const response = await axios.post('/api/courses/save', payload, config)
     
     if (!course.value.id) {
       course.value.id = response.data.id

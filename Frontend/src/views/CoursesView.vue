@@ -23,7 +23,7 @@ const fetchCourses = async () => {
 
     const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {}
 
-    const response = await axios.get('http://localhost:5042/api/courses/published', config)
+    const response = await axios.get('/api/courses/published', config)
     courses.value = response.data
   } catch (error) {
     console.error(error)
@@ -66,7 +66,7 @@ const startCourse = async (courseId) => {
     const token = localStorage.getItem('token')
     const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {}
 
-    await axios.post(`http://localhost:5042/api/courses/${courseId}/enroll`, {}, config)
+    await axios.post(`/api/courses/${courseId}/enroll`, {}, config)
 
     router.push(`/course/${courseId}`)
     

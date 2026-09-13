@@ -63,7 +63,7 @@ const fetchCourseContent = async () => {
     const token = localStorage.getItem('token');
     const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
 
-    const response = await axios.get(`http://localhost:5042/api/courses/${courseId}/content`, config);
+    const response = await axios.get(`/api/courses/${courseId}/content`, config);
     const data = response.data;
     
     courseTitle.value = data.title;

@@ -6,6 +6,7 @@ import CoursesView from '@/views/CoursesView.vue';
 import HomeView from '@/views/HomeView.vue';
 import CourseCreatorView from '@/views/CourseCreatorView.vue';
 import MentorDashboardView from '@/views/MentorDashboardView.vue';
+import DashboardView from '@/views/DashboardView.vue';
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -44,9 +45,14 @@ const routes: Array<RouteRecordRaw> = [
     component: CourseCreatorView,
   },
   {
-    path: "/Mentor-Dashboard",
+    path: "/mentor-dashboard",
     name: "mentor-dashboard",
     component: MentorDashboardView,
+  },
+  {
+    path: "/dashboard",
+    name: "dashboard",
+    component: DashboardView,
   }
 
 ]

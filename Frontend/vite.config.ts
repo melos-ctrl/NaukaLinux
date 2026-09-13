@@ -18,11 +18,20 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
-  // DODAJ TĘ SEKCJĘ:
+  // dodanie konfiguracji serwera deweloperskiego z włączonym odpytywaniem i pozbycie sie problemu development -> deployment
   server: {
     watch: {
-      usePolling: true, // <-- To włącza odpytywanie!
-      interval: 1000, // (Opcjonalnie) sprawdza co 1 sekundę. Możesz zmniejszyć na 500, jeśli chcesz szybciej.
+      usePolling: true, // odpytywanie
+      interval: 1000, // sprawdzenie zmian co 1000ms
+    },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5042', // adres backendu
+        changeOrigin: true,
+        secure: false,
+      },
     }
   }
 })
+
+// dodanie proxy pozwala mi pisanie w kodzie frontendu np. fetch('/api/endpoint') zamiast fetch('http://localhost:5042/api/endpoint') co pozwala na łatwiejsze przełączanie się między środowiskiem deweloperskim a produkcyjnym.

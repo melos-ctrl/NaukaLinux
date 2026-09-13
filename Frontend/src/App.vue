@@ -68,7 +68,7 @@ onUnmounted(() => { document.removeEventListener('click', isDropdownClosed); });
           NaukaLinux
         </router-link>
         <nav class="flex gap-6 font-medium text-sm border-l border-gray-600 pl-8">
-          <router-link to="/dashboard" class="hover:text-spicy-paprika transition-colors" active-class="text-spicy-paprika font-bold">Moja Nauka</router-link>
+          <router-link to="/dashboard" class="hover:text-spicy-paprika transition-colors" active-class="text-spicy-paprika font-bold">Mój profil</router-link>
           <router-link to="/courses" class="hover:text-spicy-paprika transition-colors" active-class="text-spicy-paprika font-bold">Katalog Kursów</router-link>
         </nav>
       </div>

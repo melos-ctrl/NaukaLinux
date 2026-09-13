@@ -26,7 +26,7 @@ const fetchMentorCourses = async () => {
     const token = localStorage.getItem('token');
     const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
 
-    const response = await axios.get('http://localhost:5042/api/courses/my-courses', config);
+    const response = await axios.get('/api/courses/my-courses', config);
     courses.value = response.data;
   } catch (error) {
     console.error("Błąd podczas pobierania kursów:", error);

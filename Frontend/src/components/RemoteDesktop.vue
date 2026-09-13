@@ -12,7 +12,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 const startHeartbeat = (id: string) => {
   stopHeartbeat()
   heartbeatInterval = setInterval(() => {
-    fetch(`http://localhost:5042/api/virtualdesktop/heartbeat?ContainerId=${id}`, { method: 'POST' })
+    fetch(`/api/virtualdesktop/heartbeat?ContainerId=${id}`, { method: 'POST' })
       .catch(error => console.error(error))
   }, 30000)
 }
@@ -44,7 +44,7 @@ const startSession = async () => {
 
   isLoading.value = true
   try {
-    const response = await fetch('http://localhost:5042/api/virtualdesktop/start', { method: 'POST' })
+    const response = await fetch('/api/virtualdesktop/start', { method: 'POST' })
 
     if (response.ok) {
       const data = await response.json()
@@ -69,7 +69,7 @@ const stopSession = async () => {
   if (!activeContainerId.value) return
 
   try {
-    await fetch(`http://localhost:5042/api/virtualdesktop/stop?ContainerId=${activeContainerId.value}`, { method: 'POST' })
+    await fetch(`/api/virtualdesktop/stop?ContainerId=${activeContainerId.value}`, { method: 'POST' })
     
     stopHeartbeat()
     
