@@ -7,12 +7,24 @@ import HomeView from '@/views/HomeView.vue';
 import CourseCreatorView from '@/views/CourseCreatorView.vue';
 import MentorDashboardView from '@/views/MentorDashboardView.vue';
 import DashboardView from '@/views/DashboardView.vue';
+import ForgotPasswordView from '@/views/ForgotPasswordView.vue';
+import ResetPasswordView from '@/views/ResetPasswordView.vue';
 
 const routes: Array<RouteRecordRaw> = [
   {
     path: "/course/:id",
     name: "course-player",
     component: LessonView,
+  },
+  {
+    path: "/forgot-password",
+    name: "forgot-password",
+    component: ForgotPasswordView,
+  },
+  {
+    path: "/reset-password",
+    name: "reset-password",
+    component: ResetPasswordView,
   },
   {
     path: "/login",

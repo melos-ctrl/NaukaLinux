@@ -1,4 +1,6 @@
 using Backend.Data;
+using Resend;
+using Backend.Service;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -40,6 +42,15 @@ builder.Services.AddCors(options =>
     });
 });
 builder.Services.AddHostedService<Backend.Service.ContainerHeartBeatCleanUpService>();
+
+// Resend
+builder.Services.AddResend(options =>
+{
+    options.ApiToken = builder.Configuration["Resend:ApiKey"]!;
+});
+
+builder.Services.AddScoped<IEmailService, ResendEmailService>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())

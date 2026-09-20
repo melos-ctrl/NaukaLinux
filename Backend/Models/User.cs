@@ -8,4 +8,7 @@ public class User
     public string PasswordHash { get; set; }
     
     public string Role { get; set; } = "User";
+
+    public string? ResetToken { get; set; }
+    public DateTime? ResetTokenExpiry { get; set; }
 }

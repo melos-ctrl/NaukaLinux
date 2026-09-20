@@ -5,6 +5,7 @@
 -----------------------------------------
 dotnet tool install --global dotnet-ef - instalacja narzedzi EF Core
 dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer - dodanie JWT
+dotnet add package Resend - dodanie Resend
 
 [1] BAZA DANYCH (Główny folder, przy docker-compose.yml)
 -----------------------------------------
@@ -34,4 +35,4 @@ docker network create --opt com.docker.network.bridge.enable_icc=false students_
 
 DEPLOY 
 
-Usuń wszystkie zmianki o localhost
+Usuń wszystkie zmianki o localhost gotowe

@@ -55,12 +55,14 @@ const handleLogin = async () => {
         <label for="password" class="text-floral-white">Hasło</label>
         <input v-model="password" class="bg-carbon-black border border-silver rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-spicy-paprika text-floral-white" type="password" id="password" required>
 
+        <router-link to="/forgot-password" class="text-sm text-spicy-paprika hover:underline mt-2">Nie pamiętasz hasła?</router-link>
+
         <button type="submit" class="bg-spicy-paprika text-floral-white px-4 py-2 rounded mt-4 hover:bg-floral-white hover:text-charcoal-brown transition">Zaloguj się</button>
       </form>
 
       <p v-if="message" class="mt-4 text-center font-bold text-floral-white">{{ message }}</p>
 
-      <span class="mt-4 text-sm text-floral-white">Nie masz konta? <a href="/register" class="text-spicy-paprika hover:underline">Zarejestruj się</a></span>
+      <router-link to="/register" class="mt-4 text-sm text-floral-white">Nie masz konta? <a class="text-spicy-paprika hover:underline">Zarejestruj się</a></router-link>
     </div>
   </div>
 </template>
