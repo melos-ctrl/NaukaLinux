@@ -1,18 +1,27 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-
+import { Turnstile } from '@sctg/turnstile-vue3'
 
 const email = ref('')
 const username = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const message = ref('')
+// Token do przechowywania tokenu Turnstile, używany do weryfikacji rejestracji.
+const turnstileToken = ref('')
+const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as string
 
 const handleRegister = async () => {
   if (password.value !== confirmPassword.value) {
     message.value = 'Hasła nie są identyczne!'
     return
   }
+
+  if (!turnstileToken.value) {
+    message.value = 'Proszę potwierdzić, że nie jesteś robotem.'
+    return
+  }
+
 
   try {
     const response = await fetch('/api/auth/register', {
@@ -23,7 +32,8 @@ const handleRegister = async () => {
       body: JSON.stringify({
         email: email.value,
         username: username.value,
-        password: password.value
+        password: password.value,
+        cfToken: turnstileToken.value // Dodanie tokenu Turnstile do żądania rejestracji
       })
     })
 
@@ -32,6 +42,7 @@ const handleRegister = async () => {
     } else {
       const errorText = await response.text()
       message.value = `Błąd: ${errorText}`
+      turnstileToken.value = '' // resetowanie Turnsite po nieudanej rejestracji.
     }
   } catch (error) {
     console.error(error)
@@ -58,6 +69,15 @@ const handleRegister = async () => {
 
         <label for="confirmPassword" class="text-floral-white">Powtórz Hasło</label>
         <input v-model="confirmPassword" class="bg-carbon-black border border-silver rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-spicy-paprika text-floral-white" type="password" id="confirmPassword" required>
+
+        <!-- Widget Turnstile -->
+        <div class="mt-4 flex justify-center">
+          <Turnstile 
+            :siteKey="turnstileSiteKey" 
+            v-model="turnstileToken"
+          />
+        </div>
+
 
         <button type="submit" class="bg-spicy-paprika text-floral-white px-4 py-2 rounded mt-4 hover:bg-floral-white hover:text-charcoal-brown  transition">Zarejestruj się</button>
       </form>
