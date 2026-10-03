@@ -36,3 +36,13 @@ docker network create --opt com.docker.network.bridge.enable_icc=false students_
 DEPLOY 
 
 Usuń wszystkie zmianki o localhost gotowe
+
+dodane
+ImageSharp
+
+
+do zrobienia 
+naprawienie VNC 
+poprawienie wyglądu piaskownicy 
+Dashboard dodanie menu po środku 
+naparawienie obrazu dockera 

@@ -9,6 +9,7 @@ import MentorDashboardView from '@/views/MentorDashboardView.vue';
 import DashboardView from '@/views/DashboardView.vue';
 import ForgotPasswordView from '@/views/ForgotPasswordView.vue';
 import ResetPasswordView from '@/views/ResetPasswordView.vue';
+import SandboxView from '@/views/SandboxView.vue';
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -65,7 +66,12 @@ const routes: Array<RouteRecordRaw> = [
     path: "/dashboard",
     name: "dashboard",
     component: DashboardView,
-  }
+  },
+  {
+    path: "/sandbox",
+    name: "sandbox",
+    component: SandboxView,
+  },
 
 ]
 

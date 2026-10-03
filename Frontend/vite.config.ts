@@ -30,6 +30,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/avatars': {
+        target: 'http://localhost:5042',
+        changeOrigin: true,
+        secure: false,
+      },
     }
   }
 })
