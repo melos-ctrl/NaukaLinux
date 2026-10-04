@@ -86,7 +86,7 @@ const stopSession = async () => {
 
 <template>
   <div class="flex flex-col items-center gap-4 p-5 w-full">
-    <h2 class="text-2xl font-bold text-charcoal-brown">Wirtualny Linux MATE (KasmVNC)</h2>
+    <h2 class="text-2xl font-bold text-charcoal-brown">Wirtualny Linux XFCE (KasmVNC)</h2>
 
     <div class="flex gap-4">
       <button

@@ -138,7 +138,7 @@ onMounted(() => {
         </div>
       </main>
 
-      <aside class="w-full md:w-1/5 bg-charcoal-brown border-l border-silver/30 p-6 shrink-0">
+      <aside class="w-full md:w-1/5 bg-charcoal-brown border-l border-silver/30 p-6 shrink-0 rounded-4xl">
         <div class="sticky top-24">
           <h2 class="text-lg font-bold text-floral-white mb-5 flex items-center gap-2">
             <span>Filtrowanie</span> 

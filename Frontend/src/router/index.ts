@@ -10,6 +10,7 @@ import DashboardView from '@/views/DashboardView.vue';
 import ForgotPasswordView from '@/views/ForgotPasswordView.vue';
 import ResetPasswordView from '@/views/ResetPasswordView.vue';
 import SandboxView from '@/views/SandboxView.vue';
+import SettingsView from '@/views/SettingsView.vue';
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -72,7 +73,11 @@ const routes: Array<RouteRecordRaw> = [
     name: "sandbox",
     component: SandboxView,
   },
-
+  {
+    path: "/settings",
+    name: "settings",
+    component: SettingsView,
+  }
 ]
 
 
