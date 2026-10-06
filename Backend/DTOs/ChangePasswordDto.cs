@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Backend.Validation;
 
 namespace Backend.DTOs;
 
@@ -8,6 +9,6 @@ public class ChangePasswordDto
     public string CurrentPassword { get; set; } = null!;
 
     [Required]
-    [MinLength(8)]
+    [PasswordPolicy]
     public string NewPassword { get; set; } = null!;
 }
