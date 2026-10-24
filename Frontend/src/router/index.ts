@@ -11,6 +11,7 @@ import ForgotPasswordView from '@/views/ForgotPasswordView.vue';
 import ResetPasswordView from '@/views/ResetPasswordView.vue';
 import SandboxView from '@/views/SandboxView.vue';
 import SettingsView from '@/views/SettingsView.vue';
+import AdminView from '@/views/AdminView.vue';
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -52,16 +53,19 @@ const routes: Array<RouteRecordRaw> = [
     path: "/course-creator",
     name: "course-creator",
     component: CourseCreatorView,
+    meta: { requiresCourseRole: true },
   },
   {
     path: "/course-creator/:id",
     name: "course-editor",
     component: CourseCreatorView,
+    meta: { requiresCourseRole: true },
   },
   {
     path: "/mentor-dashboard",
     name: "mentor-dashboard",
     component: MentorDashboardView,
+    meta: { requiresCourseRole: true },
   },
   {
     path: "/dashboard",
@@ -77,6 +81,12 @@ const routes: Array<RouteRecordRaw> = [
     path: "/settings",
     name: "settings",
     component: SettingsView,
+  },
+  {
+    path: "/admin",
+    name: "admin",
+    component: AdminView,
+    meta: { requiresAdmin: true },
   }
 ]
 
@@ -84,6 +94,37 @@ const routes: Array<RouteRecordRaw> = [
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: routes,
+})
+
+router.beforeEach((to) => {
+  const token = localStorage.getItem('token')
+  const role = localStorage.getItem('role')?.toLowerCase()
+
+  if (!to.meta.requiresAdmin) {
+    if (!to.meta.requiresCourseRole) {
+      return true
+    }
+
+    if (!token) {
+      return { name: 'login' }
+    }
+
+    if (role !== 'admin' && role !== 'mentor') {
+      return { name: 'dashboard' }
+    }
+
+    return true
+  }
+
+  if (!token) {
+    return { name: 'login' }
+  }
+
+  if (role !== 'admin') {
+    return { name: 'dashboard' }
+  }
+
+  return true
 })
 
 export default router

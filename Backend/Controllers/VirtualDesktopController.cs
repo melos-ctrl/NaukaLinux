@@ -25,7 +25,7 @@ public class VirtualDesktopController : ControllerBase
         {
             FileName = "docker",
             Arguments = $"run -d --name {containerName} -p {assignedPort}:3000 --network students_network " +
-                        "--shm-size=\"1gb\" --memory=\"1g\" --cpus=\"1.0\" --pids-limit=200 " +
+                        "--shm-size=\"1gb\" --memory=\"1g\" --cpus=\"1.0\" --pids-limit=1000 " +
                         "--cap-drop=SYS_ADMIN --cap-drop=SYS_MODULE --cap-drop=SYS_BOOT --cap-drop=SYS_TIME " +
                         "-e PUID=1000 -e PGID=1000 -e TZ=Europe/Warsaw -e TITLE=\"NaukaLinux\" " +
                         "naukalinux-xfce",

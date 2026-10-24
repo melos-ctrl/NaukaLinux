@@ -38,6 +38,7 @@ public class CoursesController : ControllerBase
         return Ok(courses);
     }
 
+    [Authorize(Roles = "Admin,Mentor")]
     [HttpPost("save")]
     public async Task<IActionResult> SaveCourse([FromBody] CreateCourseDto dto)
     {
@@ -46,7 +47,8 @@ public class CoursesController : ControllerBase
         if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out int userId)) 
             return Unauthorized();
 
-        Course course;
+        var isAdmin = User.IsInRole("Admin");
+        Course? course;
 
         if (dto.Id.HasValue && dto.Id > 0)
         {
@@ -54,7 +56,7 @@ public class CoursesController : ControllerBase
                 .Include(c => c.Lessons)
                     .ThenInclude(l => l.Blocks)
                         .ThenInclude(b => b.Options)
-                .FirstOrDefaultAsync(c => c.Id == dto.Id && c.MentorId == userId);
+                .FirstOrDefaultAsync(c => c.Id == dto.Id && (c.MentorId == userId || isAdmin));
 
             if (course == null) return NotFound();
 
@@ -99,6 +101,7 @@ public class CoursesController : ControllerBase
                 FrontText = b.FrontText,
                 BackText = b.BackText,
                 VideoUrl = b.VideoUrl,
+                Hint = b.Hint, // <-- DODANE MAPOWANIE PODPOWIEDZI
                 Options = b.Options?.Select(o => new QuizOption
                 {
                     OptionText = o.OptionText,
@@ -148,7 +151,7 @@ public class CoursesController : ControllerBase
         
         var isEnrolled = await _context.CourseEnrollments.AnyAsync(e => e.CourseId == courseId && e.UserId == userId);
     
-        if (course.MentorId != userId && !isEnrolled)
+        if (course.MentorId != userId && !isEnrolled && !User.IsInRole("Admin"))
         {
             return Forbid("Nie masz dostępu do tego kursu. Musisz się najpierw zapisać.");
         }
@@ -157,7 +160,7 @@ public class CoursesController : ControllerBase
     }
     
     [HttpGet("my-courses")]
-    [Authorize]
+    [Authorize(Roles = "Admin,Mentor")]
     public async Task<IActionResult> GetMyCourses()
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -165,10 +168,102 @@ public class CoursesController : ControllerBase
 
         int userId = int.Parse(userIdString);
         
+        var isAdmin = User.IsInRole("Admin");
         var courses = await _context.Courses
-            .Where(c => c.MentorId == userId) 
+            .Where(c => isAdmin || c.MentorId == userId)
             .ToListAsync();
 
         return Ok(courses);
+    }
+
+    // dodatkowe endpointy dla mentroa i admina 
+
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin,Mentor")]
+    public async Task<IActionResult> DeleteCourse(int id)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userIdString == null) return Unauthorized();
+        int userId = int.Parse(userIdString);
+
+        var course = await _context.Courses.FindAsync(id);
+        if (course == null) return NotFound();
+
+        if (!User.IsInRole("Admin") && course.MentorId != userId)
+        {
+            return Forbid();
+        }
+
+        _context.Courses.Remove(course);
+        await _context.SaveChangesAsync();
+        return Ok();
+    }
+
+    [HttpGet("mentor-results")]
+    [Authorize(Roles = "Admin,Mentor")]
+    public async Task<IActionResult> GetMentorResults()
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userIdString == null) return Unauthorized();
+        int userId = int.Parse(userIdString);
+
+        var isAdmin = User.IsInRole("Admin");
+        var query = _context.UserProgresses
+            .Include(p => p.User)
+            .Include(p => p.Course)
+            .AsQueryable();
+
+        if (!isAdmin)
+        {
+            query = query.Where(p => p.Course != null && p.Course.MentorId == userId);
+        }
+
+        var results = await query
+            .OrderByDescending(p => p.UpdatedAt)
+            .Select(p => new
+            {
+                p.Id,
+                Username = p.User != null ? p.User.Username : "Usunięty",
+                CourseTitle = p.Course != null ? p.Course.Title : "Usunięty",
+                p.Score,
+                p.LastCompletedLessonId,
+                p.UpdatedAt
+            })
+            .ToListAsync();
+
+        return Ok(results);
+    }
+
+    [HttpGet("mentor-feedbacks")]
+    [Authorize(Roles = "Admin,Mentor")]
+    public async Task<IActionResult> GetMentorFeedbacks()
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userIdString == null) return Unauthorized();
+        int userId = int.Parse(userIdString);
+
+        var isAdmin = User.IsInRole("Admin");
+        var mentorCourseIds = await _context.Courses
+            .Where(c => isAdmin || c.MentorId == userId)
+            .Select(c => c.Id)
+            .ToListAsync();
+
+        var feedbacks = await _context.Feedbacks
+            .Include(f => f.User)
+            .Where(f => mentorCourseIds.Contains(f.CourseId))
+            .OrderByDescending(f => f.CreatedAt)
+            .Select(f => new
+            {
+                f.Id,
+                Username = f.User != null ? f.User.Username : "Anonim",
+                f.CourseId,
+                f.LessonBlockId,
+                Type = f.LessonBlockId.HasValue ? "Błąd w zadaniu" : "Opinia",
+                f.Message,
+                f.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(feedbacks);
     }
 }

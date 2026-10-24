@@ -6,6 +6,8 @@
 dotnet tool install --global dotnet-ef - instalacja narzedzi EF Core
 dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer - dodanie JWT
 dotnet add package Resend - dodanie Resend
+dotnet add package SixLabors.ImageSharp
+
 
 [1] BAZA DANYCH (Główny folder, przy docker-compose.yml)
 -----------------------------------------
@@ -21,7 +23,6 @@ Aktualizacja bazy:      dotnet ef database update
 [3] FRONTEND (Vue.js) (Folder Frontend)
 -----------------------------------------
 Uruchomienie Vite:      npm run dev
-(lub yarn dev / pnpm dev - zależy czego używasz)
 
 =========================================
 PRO-TIP DLA RIDERA:
@@ -40,9 +41,3 @@ Usuń wszystkie zmianki o localhost gotowe
 dodane
 ImageSharp
 
-
-do zrobienia 
-naprawienie VNC 
-poprawienie wyglądu piaskownicy 
-Dashboard dodanie menu po środku 
-naparawienie obrazu dockera 

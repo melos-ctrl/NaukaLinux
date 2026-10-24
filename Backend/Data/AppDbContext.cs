@@ -16,4 +16,9 @@ public class AppDbContext : DbContext
     public DbSet<ControlQuestion> ControlQuestions { get; set; }
     public DbSet<QuestionOption> QuestionOptions { get; set; }
     public DbSet<CourseEnrollment> CourseEnrollments { get; set; }
+
+    public DbSet<UserProgress> UserProgresses { get; set; }
+    public DbSet<Feedback> Feedbacks { get; set; }
+    public DbSet<LessonBlock> LessonBlocks { get; set; }
+    public DbSet<QuizOption> QuizOptions { get; set; }
 }

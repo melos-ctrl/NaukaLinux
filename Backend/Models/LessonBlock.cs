@@ -20,4 +20,6 @@ public class LessonBlock
     public Lesson? Lesson { get; set; }
     
     public List<QuizOption> Options { get; set; } = new();
+
+    public string? Hint { get; set; }
 }

@@ -12,4 +12,6 @@ public class CreateLessonBlockDto
     public string? VideoUrl { get; set; }
     
     public List<CreateQuizOptionDto>? Options { get; set; }
+
+    public string? Hint {get; set;}
 }

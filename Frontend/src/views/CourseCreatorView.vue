@@ -53,6 +53,7 @@ const addBlock = (lesson, type) => {
       type: 'question', 
       questionType: 'MultipleChoice', 
       content: '', 
+      hint: '', // <-- Pole na podpowiedź
       options: [
         { text: '', isCorrect: false },
         { text: '', isCorrect: false }
@@ -73,7 +74,6 @@ const removeOption = (block, index) => {
   block.options.splice(index, 1)
 }
 
-// pobierania danych do edycji kursu, jeśli jest to edycja istniejącego kursu
 const fetchCourseForEditing = async (id) => {
   try {
     const token = localStorage.getItem('token')
@@ -87,7 +87,6 @@ const fetchCourseForEditing = async (id) => {
     course.value.title = data.title
     course.value.description = data.description
 
-    // odtoworzenie modułów i lekcji z danych backendu
     if (data.lessons && data.lessons.length > 0) {
       const loadedModule = {
         type: 'module',
@@ -96,7 +95,6 @@ const fetchCourseForEditing = async (id) => {
           type: 'lesson',
           title: lesson.title,
           blocks: lesson.blocks.map(block => {
-            //mapowanie typów z backendu na typy w UI
             let uiType = 'text'
             if (block.type === 3) uiType = 'video'
             if (block.type === 1) uiType = 'question'
@@ -105,6 +103,7 @@ const fetchCourseForEditing = async (id) => {
               type: uiType,
               content: block.textContent || block.questionText || '',
               url: block.videoUrl || '',
+              hint: block.hint || '', // <-- Odczyt podpowiedzi z backendu
               questionType: 'MultipleChoice', 
               options: block.options && block.options.length > 0 ? block.options.map(opt => ({
                 text: opt.optionText,
@@ -122,18 +121,15 @@ const fetchCourseForEditing = async (id) => {
   }
 }
 
-// sprawdzenie czy mamy id
 onMounted(() => {
   const courseId = route.params.id
   if (courseId) {
     fetchCourseForEditing(courseId)
   } else {
-    // jeśli nie ma id, to jest nowy kurs, więc inicjalizujemy z jednym modułem
     addModule()
   }
 })
 
-// funkcja do zapisywania kursu (zarówno wersji roboczej jak i publikacji)
 const saveCourseData = async (isPublished) => {
   isSaving.value = true
   errorMessage.value = ''
@@ -155,6 +151,7 @@ const saveCourseData = async (isPublished) => {
             textContent: block.type === 'text' ? block.content : null,
             videoUrl: block.type === 'video' ? block.url : null,
             questionText: block.type === 'question' ? block.content : null,
+            hint: block.type === 'question' ? block.hint : null, // <-- Zapis podpowiedzi do DTO
             options: block.type === 'question' ? block.options.map(opt => ({
               optionText: opt.text,
               isCorrect: opt.isCorrect
@@ -175,7 +172,6 @@ const saveCourseData = async (isPublished) => {
     const token = localStorage.getItem('token')
     const config = { headers: { Authorization: `Bearer ${token}` } }
 
-    // Niezależnie czy to nowy kurs, czy edycja, wysyłamy POST na /save
     const response = await axios.post('/api/courses/save', payload, config)
     
     if (!course.value.id) {
@@ -364,6 +360,11 @@ const publishCourse = () => saveCourseData(true)
                       <option value="FillInTheBlank">Wpisz odpowiedź</option>
                     </select>
                     <input v-model="block.content" type="text" placeholder="Treść pytania..." class="flex-1 px-3 py-2 border border-silver bg-white text-charcoal-brown rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amethyst" />
+                  </div>
+
+                  <!-- pole podpowiedzi dodane :D:D:D:D -->
+                  <div>
+                    <input v-model="block.hint" type="text" placeholder="Podpowiedź dla ucznia (opcjonalnie, np. Użyj flagi -la)..." class="w-full px-3 py-2 border border-silver bg-white text-charcoal-brown rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amethyst" />
                   </div>
 
                   <div class="pl-4 border-l-2 border-amethyst/30">

@@ -126,6 +126,37 @@ namespace Backend.Migrations
                     b.ToTable("CourseModules");
                 });
 
+            modelBuilder.Entity("Backend.Models.Feedback", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("LessonBlockId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Feedbacks");
+                });
+
             modelBuilder.Entity("Backend.Models.Lesson", b =>
                 {
                     b.Property<int>("Id")
@@ -170,6 +201,9 @@ namespace Backend.Migrations
                     b.Property<string>("FrontText")
                         .HasColumnType("text");
 
+                    b.Property<string>("Hint")
+                        .HasColumnType("text");
+
                     b.Property<int>("LessonId")
                         .HasColumnType("integer");
 
@@ -192,7 +226,7 @@ namespace Backend.Migrations
 
                     b.HasIndex("LessonId");
 
-                    b.ToTable("LessonBlock");
+                    b.ToTable("LessonBlocks");
                 });
 
             modelBuilder.Entity("Backend.Models.QuestionOption", b =>
@@ -242,7 +276,7 @@ namespace Backend.Migrations
 
                     b.HasIndex("LessonBlockId");
 
-                    b.ToTable("QuizOption");
+                    b.ToTable("QuizOptions");
                 });
 
             modelBuilder.Entity("Backend.Models.User", b =>
@@ -252,6 +286,9 @@ namespace Backend.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AvatarUrl")
+                        .HasColumnType("text");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -278,6 +315,38 @@ namespace Backend.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("Backend.Models.UserProgress", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LastCompletedLessonId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Score")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserProgresses");
                 });
 
             modelBuilder.Entity("Backend.Models.ControlQuestion", b =>
@@ -311,6 +380,17 @@ namespace Backend.Migrations
                         .IsRequired();
 
                     b.Navigation("Course");
+                });
+
+            modelBuilder.Entity("Backend.Models.Feedback", b =>
+                {
+                    b.HasOne("Backend.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Backend.Models.Lesson", b =>
@@ -359,6 +439,25 @@ namespace Backend.Migrations
                         .IsRequired();
 
                     b.Navigation("LessonBlock");
+                });
+
+            modelBuilder.Entity("Backend.Models.UserProgress", b =>
+                {
+                    b.HasOne("Backend.Models.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Backend.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Backend.Models.ControlQuestion", b =>

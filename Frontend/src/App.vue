@@ -43,7 +43,7 @@ onUnmounted(() => { document.removeEventListener('click', isDropdownClosed); });
     
  <header 
   class="flex items-center justify-between bg-charcoal-brown px-8 py-4 text-floral-white shrink-0 shadow-md relative z-[100] rounded-b-2xl border-b border-silver/20 shadow-inner"
-  :class="{ 'border-b-2 border-spicy-paprika': isLoggedIn && userRole === 'mentor' }"
+  :class="{ 'border-b-2 border-spicy-paprika': isLoggedIn && (userRole === 'mentor' || userRole === 'admin') }"
 >
   <!-- Lewa sekcja: Logo i Nawigacja -->
   <div class="flex items-center gap-8">
@@ -51,6 +51,9 @@ onUnmounted(() => { document.removeEventListener('click', isDropdownClosed); });
       NaukaLinux
       <span v-if="isLoggedIn && userRole === 'mentor'" class="text-[10px] bg-spicy-paprika text-white px-2 py-0.5 rounded ml-1 uppercase tracking-widest">
         Mentor
+      </span>
+      <span v-else-if="isLoggedIn && userRole === 'admin'" class="text-[10px] bg-spicy-paprika text-white px-2 py-0.5 rounded ml-1 uppercase tracking-widest">
+        Admin
       </span>
     </router-link>
 
@@ -61,6 +64,13 @@ onUnmounted(() => { document.removeEventListener('click', isDropdownClosed); });
         <router-link to="/course-creator" class="hover:text-spicy-paprika transition-colors" active-class="text-spicy-paprika font-bold">Kreator Kursu</router-link>
         <router-link to="/courses" class="hover:text-spicy-paprika transition-colors" active-class="text-spicy-paprika font-bold">Katalog</router-link>
         <router-link to="/sandbox" class="hover:text-spicy-paprika transition-colors" active-class="text-spicy-paprika font-bold">Piaskownica</router-link>
+      </template>
+
+      <template v-else-if="isLoggedIn && userRole === 'admin'">
+        <router-link to="/mentor-dashboard" class="hover:text-spicy-paprika transition-colors" active-class="text-spicy-paprika font-bold">Kursy</router-link>
+        <router-link to="/course-creator" class="hover:text-spicy-paprika transition-colors" active-class="text-spicy-paprika font-bold">Kreator Kursu</router-link>
+        <router-link to="/admin" class="hover:text-spicy-paprika transition-colors" active-class="text-spicy-paprika font-bold">Panel Admina</router-link>
+        <router-link to="/courses" class="hover:text-spicy-paprika transition-colors" active-class="text-spicy-paprika font-bold">Katalog</router-link>
       </template>
 
       <!-- Linki Użytkownika -->
@@ -99,13 +109,19 @@ onUnmounted(() => { document.removeEventListener('click', isDropdownClosed); });
           ? 'bg-spicy-paprika text-white border-spicy-paprika hover:bg-opacity-90' 
           : 'bg-floral-white text-charcoal-brown hover:bg-spicy-paprika border-silver hover:text-floral-white'"
       >
-        {{ userRole === 'mentor' ? 'Panel Mentora' : 'Mój profil' }}
+        {{ userRole === 'mentor' ? 'Panel Mentora' : userRole === 'admin' ? 'Panel Admina' : 'Mój profil' }}
       </button>
 
       <!-- Dropdown Menu -->
       <div v-if="isDropdownOpen" class="absolute right-0 top-full mt-3 w-56 bg-floral-white rounded-md shadow-xl z-20 border border-silver overflow-hidden">
         <!-- Opcje specyficzne dla zwykłego użytkownika -->
-        <template v-if="userRole !== 'mentor'">
+        <template v-if="userRole === 'admin'">
+          <router-link to="/admin" class="block px-4 py-3 text-charcoal-brown hover:bg-silver transition-colors font-medium" @click="isDropdownOpen = false">
+            Panel administratora
+          </router-link>
+          <div class="border-t border-gray-200"></div>
+        </template>
+        <template v-else-if="userRole !== 'mentor'">
           <router-link to="/dashboard" class="block px-4 py-3 text-charcoal-brown hover:bg-silver transition-colors font-medium" @click="isDropdownOpen = false">
             Panel użytkownika
           </router-link>

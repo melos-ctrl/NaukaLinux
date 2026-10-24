@@ -3,6 +3,7 @@ FROM lscr.io/linuxserver/webtop:ubuntu-xfce
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
+        foot \
         dnsutils \
         git \
         htop \
@@ -21,6 +22,3 @@ RUN apt-get update && \
         zip && \
     rm -rf /var/lib/apt/lists/*
 
-COPY docker/99-setup-desktop.sh /custom-cont-init.d/99-setup-desktop.sh
-
-RUN chmod +x /custom-cont-init.d/99-setup-desktop.sh
