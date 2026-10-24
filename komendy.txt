@@ -41,3 +41,10 @@ Usuń wszystkie zmianki o localhost gotowe
 dodane
 ImageSharp
 
+instrukcja instalacji 
+pobranie dockera, npm i .net sdk 
+zainstalowanie tych rzeczy
+dotnet tool install --global dotnet-ef - instalacja narzedzi EF Core
+dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer - dodanie JWT
+dotnet add package Resend - dodanie Resend
+dotnet add package SixLabors.ImageSharp
