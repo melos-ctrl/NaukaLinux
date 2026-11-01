@@ -27,6 +27,7 @@ const addModule = () => {
   const newModule = {
     type: 'module',
     title: `Moduł ${course.value.modules.length + 1}`,
+    orderIndex: course.value.modules.length + 1,
     lessons: []
   }
   course.value.modules.push(newModule)
@@ -87,31 +88,45 @@ const fetchCourseForEditing = async (id) => {
     course.value.title = data.title
     course.value.description = data.description
 
-    if (data.lessons && data.lessons.length > 0) {
+    const mapLesson = (lesson) => ({
+      type: 'lesson',
+      title: lesson.title,
+      blocks: lesson.blocks.map(block => {
+        let uiType = 'text'
+        if (block.type === 3) uiType = 'video'
+        if (block.type === 1) uiType = 'question'
+
+        return {
+          type: uiType,
+          content: block.textContent || block.questionText || '',
+          url: block.videoUrl || '',
+          hint: block.hint || '',
+          questionType: 'MultipleChoice',
+          options: block.options && block.options.length > 0 ? block.options.map(opt => ({
+            text: opt.optionText,
+            isCorrect: opt.isCorrect
+          })) : [ { text: '', isCorrect: false }, { text: '', isCorrect: false } ]
+        }
+      })
+    })
+
+    if (data.modules && data.modules.length > 0) {
+      course.value.modules = [...data.modules]
+        .sort((a, b) => a.order - b.order)
+        .map(module => ({
+          type: 'module',
+          title: module.title,
+          orderIndex: module.order,
+          lessons: [...module.lessons]
+            .sort((a, b) => a.orderIndex - b.orderIndex)
+            .map(mapLesson)
+        }))
+    } else if (data.lessons && data.lessons.length > 0) {
       const loadedModule = {
         type: 'module',
         title: 'Lekcje kursu',
-        lessons: data.lessons.map(lesson => ({
-          type: 'lesson',
-          title: lesson.title,
-          blocks: lesson.blocks.map(block => {
-            let uiType = 'text'
-            if (block.type === 3) uiType = 'video'
-            if (block.type === 1) uiType = 'question'
-
-            return {
-              type: uiType,
-              content: block.textContent || block.questionText || '',
-              url: block.videoUrl || '',
-              hint: block.hint || '', // <-- Odczyt podpowiedzi z backendu
-              questionType: 'MultipleChoice', 
-              options: block.options && block.options.length > 0 ? block.options.map(opt => ({
-                text: opt.optionText,
-                isCorrect: opt.isCorrect
-              })) : [ { text: '', isCorrect: false }, { text: '', isCorrect: false } ]
-            }
-          })
-        }))
+        orderIndex: 1,
+        lessons: data.lessons.map(mapLesson)
       }
       course.value.modules = [loadedModule]
     }
@@ -136,8 +151,10 @@ const saveCourseData = async (isPublished) => {
   successMessage.value = ''
 
   try {
-    const flattenedLessons = course.value.modules.flatMap((module, mIdx) => 
-      module.lessons.map((lesson, lIdx) => ({
+    const modules = course.value.modules.map((module, mIdx) => ({
+      title: module.title,
+      orderIndex: mIdx + 1,
+      lessons: module.lessons.map((lesson, lIdx) => ({
         title: lesson.title,
         orderIndex: mIdx * 100 + lIdx + 1,
         blocks: lesson.blocks.map((block, bIdx) => {
@@ -159,13 +176,16 @@ const saveCourseData = async (isPublished) => {
           }
         })
       }))
-    )
+    }))
+
+    const flattenedLessons = modules.flatMap(module => module.lessons)
 
     const payload = {
       id: course.value.id,
       isPublished: isPublished,
       title: course.value.title,
       description: course.value.description,
+      modules: modules,
       lessons: flattenedLessons
     }
 

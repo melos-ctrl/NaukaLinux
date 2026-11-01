@@ -56,16 +56,19 @@ public class CoursesController : ControllerBase
                 .Include(c => c.Lessons)
                     .ThenInclude(l => l.Blocks)
                         .ThenInclude(b => b.Options)
+                .Include(c => c.Modules)
                 .FirstOrDefaultAsync(c => c.Id == dto.Id && (c.MentorId == userId || isAdmin));
 
             if (course == null) return NotFound();
 
             _context.Lessons.RemoveRange(course.Lessons);
+            _context.CourseModules.RemoveRange(course.Modules);
             
             course.Title = dto.Title;
             course.Description = dto.Description;
             course.isPublished = dto.IsPublished;
-            course.Lessons = MapLessons(dto);
+            course.Modules = MapModules(dto, course);
+            course.Lessons = course.Modules.SelectMany(module => module.Lessons).ToList();
         }
         else
         {
@@ -74,9 +77,11 @@ public class CoursesController : ControllerBase
                 Title = dto.Title,
                 Description = dto.Description,
                 MentorId = userId,
-                isPublished = dto.IsPublished,
-                Lessons = MapLessons(dto)
+                isPublished = dto.IsPublished
             };
+
+            course.Modules = MapModules(dto, course);
+            course.Lessons = course.Modules.SelectMany(module => module.Lessons).ToList();
 
             _context.Courses.Add(course);
         }
@@ -86,28 +91,51 @@ public class CoursesController : ControllerBase
         return Ok(new { message = "Kurs został pomyślnie zapisany!", id = course.Id });
     }
 
-    private List<Lesson> MapLessons(CreateCourseDto dto)
+    private List<CourseModule> MapModules(CreateCourseDto dto, Course course)
     {
-        return dto.Lessons.Select(l => new Lesson
-        {
-            Title = l.Title,
-            OrderIndex = l.OrderIndex,
-            Blocks = l.Blocks.Select(b => new LessonBlock
-            {
-                Type = b.Type,
-                OrderIndex = b.OrderIndex,
-                TextContent = b.TextContent,
-                QuestionText = b.QuestionText,
-                FrontText = b.FrontText,
-                BackText = b.BackText,
-                VideoUrl = b.VideoUrl,
-                Hint = b.Hint, // <-- DODANE MAPOWANIE PODPOWIEDZI
-                Options = b.Options?.Select(o => new QuizOption
+        var modules = dto.Modules.Count > 0
+            ? dto.Modules
+            : dto.Lessons.Count > 0
+                ? new List<CreateModuleDto>
                 {
-                    OptionText = o.OptionText,
-                    IsCorrect = o.IsCorrect
-                }).ToList() ?? new List<QuizOption>()
-            }).ToList()
+                    new() { Title = "Moduł 1", OrderIndex = 1, Lessons = dto.Lessons }
+                }
+                : new List<CreateModuleDto>();
+
+        return modules.Select((moduleDto, moduleIndex) =>
+        {
+            var module = new CourseModule
+            {
+                Title = moduleDto.Title,
+                Order = moduleDto.OrderIndex > 0 ? moduleDto.OrderIndex : moduleIndex + 1,
+                Course = course
+            };
+
+            module.Lessons = moduleDto.Lessons.Select(lessonDto => new Lesson
+            {
+                Title = lessonDto.Title,
+                OrderIndex = lessonDto.OrderIndex,
+                Course = course,
+                CourseModule = module,
+                Blocks = lessonDto.Blocks.Select(blockDto => new LessonBlock
+                {
+                    Type = blockDto.Type,
+                    OrderIndex = blockDto.OrderIndex,
+                    TextContent = blockDto.TextContent,
+                    QuestionText = blockDto.QuestionText,
+                    FrontText = blockDto.FrontText,
+                    BackText = blockDto.BackText,
+                    VideoUrl = blockDto.VideoUrl,
+                    Hint = blockDto.Hint,
+                    Options = blockDto.Options?.Select(option => new QuizOption
+                    {
+                        OptionText = option.OptionText,
+                        IsCorrect = option.IsCorrect
+                    }).ToList() ?? new List<QuizOption>()
+                }).ToList()
+            }).ToList();
+
+            return module;
         }).ToList();
     }
 
@@ -145,6 +173,10 @@ public class CoursesController : ControllerBase
             .Include(c => c.Lessons)
             .ThenInclude(l => l.Blocks)
             .ThenInclude(b => b.Options)
+            .Include(c => c.Modules)
+                .ThenInclude(m => m.Lessons)
+                    .ThenInclude(l => l.Blocks)
+                        .ThenInclude(b => b.Options)
             .FirstOrDefaultAsync(c => c.Id == courseId);
 
         if (course == null) return NotFound("Nie znaleziono kursu.");

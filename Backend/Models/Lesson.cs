@@ -11,6 +11,10 @@ public class Lesson
     public int CourseId { get; set; }
     [JsonIgnore]
     public Course? Course { get; set; }
+
+    public int? CourseModuleId { get; set; }
+    [JsonIgnore]
+    public CourseModule? CourseModule { get; set; }
     
     public List<LessonBlock> Blocks { get; set; } = new();
 }

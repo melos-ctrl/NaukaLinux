@@ -13,6 +13,8 @@ public class Course
     public User? Mentor { get; set; }
     
     public List<Lesson> Lessons { get; set; } = new();
+
+    public List<CourseModule> Modules { get; set; } = new();
     
     public bool isPublished { get; set; } = false;
 }

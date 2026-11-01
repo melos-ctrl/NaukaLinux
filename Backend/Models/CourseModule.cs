@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Backend.Models;
 
 public class CourseModule
@@ -7,6 +9,7 @@ public class CourseModule
     public int Order { get; set; }
     
     public int CourseId { get; set; }
+    [JsonIgnore]
     public Course? Course { get; set; }
     
     public List<Lesson> Lessons { get; set; } = new(); 
