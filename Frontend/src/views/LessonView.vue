@@ -5,9 +5,17 @@ import axios from 'axios';
 import RemoteDesktop from '../components/RemoteDesktop.vue';
 
 interface QuizOption {
+  id: number;
   optionText: string;
+}
+
+interface AnswerResult {
+  optionIds: number[];
+  textAnswer?: string;
   isCorrect: boolean;
 }
+
+type QuestionType = 'MultipleChoice' | 'TrueFalse' | 'TextAnswer';
 
 interface BlockData {
   id?: number;
@@ -15,6 +23,7 @@ interface BlockData {
   orderIndex: number;
   textContent?: string;
   questionText?: string;
+  questionType?: QuestionType;
   frontText?: string;
   backText?: string;
   videoUrl?: string;
@@ -29,9 +38,16 @@ interface LessonData {
   blocks: BlockData[];
 }
 
+interface ModuleData {
+  title: string;
+  order: number;
+  lessons: LessonData[];
+}
+
 interface Task {
   id: number;
   orderIndex: number;
+  moduleTitle?: string;
   lessonTitle: string;
   blocks: BlockData[];
 }
@@ -47,7 +63,11 @@ const isVncOpen = ref(false);
 const tasks = ref<Task[]>([]);
 const currentStepIndex = ref(0);
 const visibleHints = ref<Record<number, boolean>>({});
-const answeredQuestions = ref<Record<number, QuizOption | null>>({});
+const answeredQuestions = ref<Record<number, AnswerResult | undefined>>({});
+const checkingAnswers = ref<Record<number, boolean | undefined>>({});
+const answerErrors = ref<Record<number, string | undefined>>({});
+const selectedOptions = ref<Record<number, number[] | undefined>>({});
+const textAnswers = ref<Record<number, string | undefined>>({});
 
 // Modal do zgłaszania błędów w zadaniach i wysyłania opinii
 const isFeedbackModalOpen = ref(false);
@@ -83,19 +103,25 @@ const fetchCourseContent = async () => {
     courseTitle.value = data.title;
 
     const parsedTasks: Task[] = [];
-    let stepCounter = 1;
+    const modules: ModuleData[] = ((data.modules || []) as ModuleData[])
+      .slice()
+      .sort((a: ModuleData, b: ModuleData) => a.order - b.order);
+    const lessonsWithModules: { lesson: LessonData; moduleTitle?: string }[] = modules.length > 0
+      ? modules.flatMap(module => module.lessons.map(lesson => ({ lesson, moduleTitle: module.title })))
+      : ((data.lessons || []) as LessonData[]).map(lesson => ({ lesson, moduleTitle: undefined }));
 
-    const sortedLessons = (data.lessons || []).sort((a: LessonData, b: LessonData) => a.orderIndex - b.orderIndex);
-
-    sortedLessons.forEach((lesson: LessonData) => {
-      const sortedBlocks = lesson.blocks.sort((a, b) => a.orderIndex - b.orderIndex);
-      parsedTasks.push({
-        id: stepCounter++,
-        orderIndex: lesson.orderIndex || stepCounter - 1,
-        lessonTitle: lesson.title,
-        blocks: sortedBlocks
+    lessonsWithModules
+      .sort((a, b) => a.lesson.orderIndex - b.lesson.orderIndex)
+      .forEach(({ lesson, moduleTitle }, index) => {
+        const sortedBlocks = [...lesson.blocks].sort((a, b) => a.orderIndex - b.orderIndex);
+        parsedTasks.push({
+          id: index + 1,
+          orderIndex: lesson.orderIndex || index + 1,
+          moduleTitle,
+          lessonTitle: lesson.title,
+          blocks: sortedBlocks
+        });
       });
-    });
 
     tasks.value = parsedTasks;
     
@@ -139,7 +165,7 @@ const saveCurrentStepProgress = async () => {
 
   let earnedPoints = 0;
   Object.values(answeredQuestions.value).forEach((ans) => {
-    if (ans && ans.isCorrect) earnedPoints += 10;
+    if (ans?.isCorrect) earnedPoints += 10;
   });
 
   try {
@@ -157,6 +183,10 @@ const nextStep = async () => {
   await saveCurrentStepProgress();
 
   answeredQuestions.value = {};
+  checkingAnswers.value = {};
+  answerErrors.value = {};
+  selectedOptions.value = {};
+  textAnswers.value = {};
   visibleHints.value = {};
 
   if (currentStepIndex.value < tasks.value.length - 1) {
@@ -213,9 +243,35 @@ const getEmbedUrl = (url: string) => {
   return url; 
 };
 
-const checkAnswer = (blockIndex: number, option: QuizOption) => {
-  if (answeredQuestions.value[blockIndex]) return;
-  answeredQuestions.value[blockIndex] = option;
+const toggleAnswerOption = (blockId: number, optionId: number, questionType?: QuestionType) => {
+  const selected = selectedOptions.value[blockId] ?? [];
+  selectedOptions.value[blockId] = questionType === 'TrueFalse'
+    ? [optionId]
+    : selected.includes(optionId)
+      ? selected.filter(id => id !== optionId)
+      : [...selected, optionId];
+};
+
+const checkAnswer = async (blockId: number, optionIds: number[] = [], textAnswer = '') => {
+  if (answeredQuestions.value[blockId] || checkingAnswers.value[blockId]) return;
+  if (optionIds.length === 0 && !textAnswer.trim()) return;
+
+  checkingAnswers.value[blockId] = true;
+  answerErrors.value[blockId] = undefined;
+
+  try {
+    const response = await axios.post(
+      `/api/student/verify-block/${blockId}`,
+      { optionIds, textAnswer },
+      getConfig(),
+    );
+    answeredQuestions.value[blockId] = { optionIds, textAnswer, isCorrect: response.data.isCorrect };
+  } catch (error) {
+    console.error('Błąd sprawdzania odpowiedzi:', error);
+    answerErrors.value[blockId] = 'Nie udało się sprawdzić odpowiedzi. Spróbuj ponownie.';
+  } finally {
+    checkingAnswers.value[blockId] = false;
+  }
 };
 
 onMounted(() => {
@@ -253,6 +309,7 @@ onMounted(() => {
                 <div class="text-xs text-spicy-paprika font-bold uppercase tracking-wider mb-1">
                   {{ courseTitle }}
                 </div>
+                <div v-if="currentTask.moduleTitle" class="text-xs text-silver font-semibold uppercase">{{ currentTask.moduleTitle }}</div>
                 <h2 class="text-xl font-bold text-floral-white line-clamp-2">Lekcja {{ currentStepIndex + 1 }}: {{ currentTask.lessonTitle }}</h2>
               </div>
               <button 
@@ -331,33 +388,72 @@ onMounted(() => {
                   <strong class="text-sky-blue">Podpowiedź:</strong> {{ block.hint }}
                 </div>
                 
-                <div v-if="block.options && block.options.length > 0" class="flex flex-col gap-3">
+                <div v-if="block.questionType === 'TextAnswer'" class="flex flex-col gap-3">
+                  <input
+                    v-if="block.id !== undefined"
+                    v-model="textAnswers[block.id]"
+                    type="text"
+                    :disabled="!!answeredQuestions[block.id] || !!checkingAnswers[block.id]"
+                    @keydown.enter="checkAnswer(block.id, [], textAnswers[block.id] ?? '')"
+                    placeholder="Wpisz odpowiedź..."
+                    class="px-4 py-3 bg-charcoal-brown border border-silver/50 rounded-lg text-white"
+                  />
+                  <button
+                    v-if="block.id !== undefined"
+                    @click="checkAnswer(block.id, [], textAnswers[block.id] ?? '')"
+                    :disabled="!!answeredQuestions[block.id] || !!checkingAnswers[block.id] || !textAnswers[block.id]?.trim()"
+                    class="self-start px-4 py-2 bg-spicy-paprika text-white rounded-lg disabled:opacity-50"
+                  >Sprawdź odpowiedź</button>
+                  <div v-if="block.id !== undefined && checkingAnswers[block.id]" class="text-sm text-silver">Sprawdzanie odpowiedzi...</div>
+                  <div v-if="block.id !== undefined && answerErrors[block.id]" class="text-sm text-red-400">{{ answerErrors[block.id] }}</div>
+                  <div v-if="block.id !== undefined && answeredQuestions[block.id]" class="font-bold text-sm text-center">
+                    <span v-if="answeredQuestions[block.id]?.isCorrect" class="text-green-400">Świetnie! Poprawna odpowiedź (+10 pkt).</span>
+                    <span v-else class="text-red-400">Niestety, to nie jest poprawna odpowiedź.</span>
+                  </div>
+                </div>
+
+                <div v-else-if="block.options && block.options.length > 0" class="flex flex-col gap-3">
                   <button 
                     v-for="(option, idx) in block.options" 
                     :key="idx"
-                    @click="checkAnswer(index, option)"
-                    :disabled="!!answeredQuestions[index]"
+                    @click="block.id !== undefined && toggleAnswerOption(block.id, option.id, block.questionType)"
+                    :disabled="block.id === undefined || !!answeredQuestions[block.id] || !!checkingAnswers[block.id]"
+                    :aria-pressed="block.id !== undefined && (selectedOptions[block.id] ?? []).includes(option.id)"
                     :class="[
                       'px-4 py-3 border rounded-lg text-left transition-colors text-sm shadow-sm',
-                      !answeredQuestions[index] ? 'bg-charcoal-brown border-silver/50 hover:bg-spicy-paprika hover:border-spicy-paprika hover:text-floral-white text-white cursor-pointer' : '',
-                      answeredQuestions[index] === option && option.isCorrect ? 'bg-green-600/90 border-green-500 text-white cursor-default' : '',
-                      answeredQuestions[index] === option && !option.isCorrect ? 'bg-red-600/90 border-red-500 text-white cursor-default' : '',
-                      answeredQuestions[index] && answeredQuestions[index] !== option && option.isCorrect ? 'bg-green-900/50 border-green-500/50 text-green-400 cursor-default' : '',
-                      answeredQuestions[index] && answeredQuestions[index] !== option && !option.isCorrect ? 'bg-charcoal-brown border-silver/20 text-gray-500 opacity-50 cursor-not-allowed' : ''
+                      block.id !== undefined && !answeredQuestions[block.id] && !checkingAnswers[block.id] && !(selectedOptions[block.id] ?? []).includes(option.id) ? 'bg-charcoal-brown border-silver/50 hover:bg-spicy-paprika text-white cursor-pointer' : '',
+                      block.id !== undefined && !answeredQuestions[block.id] && (selectedOptions[block.id] ?? []).includes(option.id) ? 'bg-spicy-paprika border-spicy-paprika text-white' : '',
+                      block.id !== undefined && answeredQuestions[block.id]?.optionIds.includes(option.id) && answeredQuestions[block.id]?.isCorrect ? 'bg-green-600/90 border-green-500 text-white cursor-default' : '',
+                      block.id !== undefined && answeredQuestions[block.id]?.optionIds.includes(option.id) && !answeredQuestions[block.id]?.isCorrect ? 'bg-red-600/90 border-red-500 text-white cursor-default' : '',
+                      block.id !== undefined && answeredQuestions[block.id] && !answeredQuestions[block.id]?.optionIds.includes(option.id) ? 'bg-charcoal-brown border-silver/20 text-gray-500 opacity-50 cursor-not-allowed' : ''
                     ]"
                   >
                     {{ option.optionText }}
                   </button>
-                  
-                  <div v-if="answeredQuestions[index]" class="mt-3 font-bold text-sm text-center">
-                    <span v-if="answeredQuestions[index]?.isCorrect" class="text-green-400">
+
+                  <button
+                    v-if="block.id !== undefined"
+                    @click="checkAnswer(block.id, selectedOptions[block.id] ?? [], textAnswers[block.id] ?? '')"
+                    :disabled="!!answeredQuestions[block.id] || !!checkingAnswers[block.id] || !(selectedOptions[block.id]?.length)"
+                    class="self-start px-4 py-2 bg-spicy-paprika text-white rounded-lg disabled:opacity-50"
+                  >Sprawdź odpowiedź</button>
+
+                  <div v-if="block.id !== undefined && checkingAnswers[block.id]" class="mt-3 text-sm text-center text-silver">
+                    Sprawdzanie odpowiedzi...
+                  </div>
+                  <div v-if="block.id !== undefined && answerErrors[block.id]" class="mt-3 text-sm text-center text-red-400">
+                    {{ answerErrors[block.id] }}
+                  </div>
+                  <div v-if="block.id !== undefined && answeredQuestions[block.id]" class="mt-3 font-bold text-sm text-center">
+                    <span v-if="answeredQuestions[block.id]?.isCorrect" class="text-green-400">
                       Świetnie! Poprawna odpowiedź (+10 pkt).
                     </span>
                     <span v-else class="text-red-400">
-                      Niestety to zła odpowiedź. Zobacz poprawną powyżej.
+                      Niestety, to nie jest poprawna odpowiedź.
                     </span>
                   </div>
                 </div>
+
               </div>
 
             </div>

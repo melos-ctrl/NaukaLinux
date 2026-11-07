@@ -32,33 +32,94 @@ public class StudentController : ControllerBase
             .Include(c => c.Lessons.OrderBy(l => l.OrderIndex))
                 .ThenInclude(l => l.Blocks.OrderBy(b => b.OrderIndex))
                     .ThenInclude(b => b.Options)
-            .FirstOrDefaultAsync(c => c.Id == courseId && c.isPublished);
+            .Include(c => c.Modules.OrderBy(m => m.Order))
+                .ThenInclude(m => m.Lessons.OrderBy(l => l.OrderIndex))
+                    .ThenInclude(l => l.Blocks.OrderBy(b => b.OrderIndex))
+                        .ThenInclude(b => b.Options)
+            .FirstOrDefaultAsync(c => c.Id == courseId);
 
-        if (course == null) return NotFound("Kurs nie istnieje lub nie jest opublikowany.");
+        if (course == null) return NotFound("Kurs nie istnieje.");
+
+        var isAdmin = User.IsInRole("Admin");
+        var isOwner = course.MentorId == userId;
+        var isEnrolled = await _context.CourseEnrollments
+            .AnyAsync(enrollment => enrollment.CourseId == courseId && enrollment.UserId == userId);
+
+        if ((!course.isPublished && !isOwner && !isAdmin) || (!isOwner && !isEnrolled && !isAdmin))
+            return Forbid();
 
         var progress = await _context.UserProgresses
             .FirstOrDefaultAsync(p => p.UserId == userId && p.CourseId == courseId);
 
         return Ok(new
         {
-            Course = course,
+            Course = CourseContentDto.FromCourse(course, includeAnswerKey: false),
             LastCompletedLessonOrderIndex = progress?.LastCompletedLessonId ?? 0,
             Score = progress?.Score ?? 0
         });
     }
 
-    // 2. sprawdzanie poprawnosci zadania
     [HttpPost("verify-block/{blockId}")]
-    public async Task<IActionResult> VerifyTask(int blockId, [FromBody] string userAnswer)
+    public async Task<IActionResult> VerifyTask(int blockId, [FromBody] VerifyAnswerDto answer)
     {
         var block = await _context.LessonBlocks
             .Include(b => b.Options)
+            .Include(b => b.Lesson)
+                .ThenInclude(lesson => lesson!.Course)
             .FirstOrDefaultAsync(b => b.Id == blockId);
 
         if (block == null) return NotFound("Nie znaleziono zadania.");
 
-        bool isCorrect = block.Options.Any(o =>
-            o.IsCorrect && o.OptionText.Trim().Equals(userAnswer.Trim(), StringComparison.OrdinalIgnoreCase));
+        var course = block.Lesson?.Course;
+        if (course == null) return NotFound("Nie znaleziono kursu dla zadania.");
+
+        var userId = GetUserId();
+        var isAdmin = User.IsInRole("Admin");
+        var isOwner = course.MentorId == userId;
+        var isEnrolled = await _context.CourseEnrollments
+            .AnyAsync(enrollment => enrollment.CourseId == course.Id && enrollment.UserId == userId);
+
+        if ((!course.isPublished && !isOwner && !isAdmin) || (!isOwner && !isEnrolled && !isAdmin))
+            return Forbid();
+
+        bool isCorrect;
+        switch (block.QuestionType)
+        {
+            case QuestionType.MultipleChoice:
+            {
+                var selectedIds = answer.OptionIds?.ToHashSet();
+                if (selectedIds == null || selectedIds.Count == 0)
+                    return BadRequest("Wybierz co najmniej jedną odpowiedź.");
+                if (selectedIds.Any(id => block.Options.All(option => option.Id != id)))
+                    return BadRequest("Wybrana odpowiedź nie należy do tego pytania.");
+
+                var correctIds = block.Options.Where(option => option.IsCorrect).Select(option => option.Id).ToHashSet();
+                isCorrect = correctIds.Count > 0 && selectedIds.SetEquals(correctIds);
+                break;
+            }
+            case QuestionType.TrueFalse:
+            {
+                if (answer.OptionIds is not { Count: 1 })
+                    return BadRequest("Wybierz jedną odpowiedź.");
+
+                var selectedOption = block.Options.FirstOrDefault(option => option.Id == answer.OptionIds[0]);
+                if (selectedOption == null)
+                    return BadRequest("Wybrana odpowiedź nie należy do tego pytania.");
+                isCorrect = selectedOption.IsCorrect;
+                break;
+            }
+            case QuestionType.TextAnswer:
+            {
+                if (string.IsNullOrWhiteSpace(answer.TextAnswer))
+                    return BadRequest("Wpisz odpowiedź.");
+
+                isCorrect = block.Options.Any(option => option.IsCorrect &&
+                    string.Equals(option.OptionText.Trim(), answer.TextAnswer.Trim(), StringComparison.OrdinalIgnoreCase));
+                break;
+            }
+            default:
+                return BadRequest("Ten typ pytania nie jest obsługiwany.");
+        }
 
         return Ok(new { IsCorrect = isCorrect });
     }

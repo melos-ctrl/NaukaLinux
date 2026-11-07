@@ -1,17 +1,23 @@
-<script setup>
+<script lang="ts" setup>
 import { ref, onMounted, computed } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
-const courses = ref([])
+interface Course {
+  id: number
+  title: string
+  description?: string
+}
+
+const courses = ref<Course[]>([])
 const isLoading = ref(true)
 const errorMessage = ref('')
 const isLoggedIn = ref(false)
 
 const searchQuery = ref('')
-const sortBy = ref('newest') 
+const sortBy = ref('newest')
 
 const fetchCourses = async () => {
   isLoading.value = true
@@ -61,7 +67,7 @@ const goToLogin = () => {
   router.push('/login')
 }
 
-const startCourse = async (courseId) => {
+const startCourse = async (courseId: number) => {
   try {
     const token = localStorage.getItem('token')
     const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {}

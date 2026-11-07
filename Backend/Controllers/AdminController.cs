@@ -104,6 +104,7 @@ public class AdminController : ControllerBase
                 OrderIndex = b.OrderIndex,
                 TextContent = b.TextContent,
                 QuestionText = b.QuestionText,
+                QuestionType = b.QuestionType,
                 FrontText = b.FrontText,
                 BackText = b.BackText,
                 VideoUrl = b.VideoUrl,
@@ -172,6 +173,54 @@ public class AdminController : ControllerBase
             .ToListAsync();
 
         return Ok(feedbacks);
+    }
+
+    [HttpGet("mentor-applications")]
+    public async Task<IActionResult> GetMentorApplications(CancellationToken cancellationToken)
+    {
+        var applications = await _context.MentorApplications
+            .OrderByDescending(application => application.SubmittedAt)
+            .Select(application => new
+            {
+                application.Id,
+                application.UserId,
+                Username = application.User != null ? application.User.Username : "Usunięty użytkownik",
+                Email = application.User != null ? application.User.Email : "-",
+                application.FirstName,
+                application.LastName,
+                application.Experience,
+                application.PortfolioUrl,
+                application.Status,
+                application.SubmittedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(applications);
+    }
+
+    [HttpPut("mentor-applications/{id:int}/review")]
+    public async Task<IActionResult> ReviewMentorApplication(
+        int id,
+        [FromBody] ReviewMentorApplicationDto request,
+        CancellationToken cancellationToken)
+    {
+        var application = await _context.MentorApplications
+            .Include(item => item.User)
+            .FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+
+        if (application is null) return NotFound("Nie znaleziono zgłoszenia.");
+        if (application.Status != "Pending")
+            return Conflict("To zgłoszenie zostało już rozpatrzone.");
+        if (application.User is null) return Conflict("Konto użytkownika nie istnieje.");
+
+        application.Status = request.Status;
+        application.ReviewedAt = DateTime.UtcNow;
+        if (request.Status == "Approved")
+            application.User.Role = "Mentor";
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { application.Id, application.Status, UserRole = application.User.Role });
     }
 
 

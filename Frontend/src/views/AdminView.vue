@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 const router = useRouter()
-const activeTab = ref<'courses' | 'users' | 'results' | 'feedbacks'>('courses')
+const route = useRoute()
+type AdminTab = 'courses' | 'users' | 'results' | 'feedbacks' | 'mentorApplications'
+const isAdminTab = (value: unknown): value is AdminTab =>
+  ['courses', 'users', 'results', 'feedbacks', 'mentorApplications'].includes(String(value))
+const activeTab = ref<AdminTab>(isAdminTab(route.query.tab) ? route.query.tab : 'courses')
 const API_URL = '/api/admin'
 
 const getHeaders = () => ({
@@ -16,19 +20,37 @@ const courses = ref<any[]>([])
 const users = ref<any[]>([])
 const results = ref<any[]>([])
 const feedbacks = ref<any[]>([])
+const mentorApplications = ref<any[]>([])
+const mentorApplicationsError = ref('')
+const reviewingApplicationId = ref<number | null>(null)
+const reviewError = ref('')
 
 // pobieranie danych
 const fetchAll = async () => {
-  const [cRes, uRes, rRes, fRes] = await Promise.all([
+  mentorApplicationsError.value = ''
+  const [cRes, uRes, rRes, fRes, mRes] = await Promise.all([
     fetch(`${API_URL}/courses`, { headers: getHeaders() }),
     fetch(`${API_URL}/users`, { headers: getHeaders() }),
     fetch(`${API_URL}/results`, { headers: getHeaders() }),
-    fetch(`${API_URL}/feedbacks`, { headers: getHeaders() })
+    fetch(`${API_URL}/feedbacks`, { headers: getHeaders() }),
+    fetch(`${API_URL}/mentor-applications`, { headers: getHeaders() }).catch((error: unknown) => {
+      console.error('Nie można połączyć się z endpointem zgłoszeń mentorskich:', error)
+      mentorApplicationsError.value = 'Nie można połączyć się z API zgłoszeń mentorów. Upewnij się, że backend działa.'
+      return null
+    })
   ])
   if (cRes.ok) courses.value = await cRes.json()
   if (uRes.ok) users.value = await uRes.json()
   if (rRes.ok) results.value = await rRes.json()
   if (fRes.ok) feedbacks.value = await fRes.json()
+  if (mRes?.ok) {
+    mentorApplications.value = await mRes.json()
+    mentorApplicationsError.value = ''
+  } else if (mRes) {
+    mentorApplications.value = []
+    mentorApplicationsError.value = `Nie udało się pobrać zgłoszeń (HTTP ${mRes.status}).`
+    console.error('Pobranie zgłoszeń mentorskich nie powiodło się:', mRes.status, await mRes.text())
+  }
 }
 
 const editCourse = (courseId: number) => {
@@ -57,6 +79,35 @@ const changeRole = async (user: any, event: Event) => {
   })
   await fetchAll()
 }
+
+const reviewMentorApplication = async (applicationId: number, status: 'Approved' | 'Rejected') => {
+  reviewingApplicationId.value = applicationId
+  reviewError.value = ''
+
+  try {
+    const response = await fetch(`${API_URL}/mentor-applications/${applicationId}/review`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ status })
+    })
+
+    if (!response.ok) {
+      reviewError.value = await response.text() || 'Nie udało się rozpatrzyć zgłoszenia.'
+      return
+    }
+
+    await fetchAll()
+  } catch (error) {
+    console.error('Nie udało się rozpatrzyć zgłoszenia:', error)
+    reviewError.value = 'Nie udało się połączyć z serwerem.'
+  } finally {
+    reviewingApplicationId.value = null
+  }
+}
+
+watch(() => route.query.tab, (tab) => {
+  if (isAdminTab(tab)) activeTab.value = tab
+})
 
 onMounted(fetchAll)
 </script>
@@ -113,6 +164,14 @@ onMounted(fetchAll)
           @click="activeTab = 'feedbacks'"
         >
           Zgłoszenia i opinie
+        </button>
+        <button
+          type="button"
+          class="shrink-0 rounded-lg px-4 py-3 text-left font-medium transition-colors hover:bg-spicy-paprika hover:text-floral-white"
+          :class="activeTab === 'mentorApplications' ? 'bg-spicy-paprika text-floral-white' : 'text-silver'"
+          @click="activeTab = 'mentorApplications'"
+        >
+          Kandydaci na mentorów ({{ mentorApplications.length }})
         </button>
       </nav>
     </aside>
@@ -283,6 +342,68 @@ onMounted(fetchAll)
         </div>
         <p v-else class="rounded-xl border border-silver/50 bg-white p-6 text-charcoal-brown/70 shadow-sm">
           Brak zgłoszeń i opinii.
+        </p>
+      </section>
+
+      <section v-if="activeTab === 'mentorApplications'" class="space-y-4">
+        <div>
+          <p class="text-sm font-medium text-silver">Zgłoszenia</p>
+          <h2 class="text-xl font-bold text-charcoal-brown">Kandydaci na mentorów</h2>
+        </div>
+        <p v-if="reviewError" role="alert" class="text-sm font-semibold text-red-700">{{ reviewError }}</p>
+        <p v-if="mentorApplicationsError" role="alert" class="rounded-lg border border-red-300 bg-red-50 p-4 text-sm font-semibold text-red-800">
+          {{ mentorApplicationsError }} Sprawdź logowanie administratora i odpowiedź żądania <code>/api/admin/mentor-applications</code> w Network.
+        </p>
+        <div v-else-if="mentorApplications.length" class="overflow-x-auto rounded-xl border border-silver/50 bg-white shadow-sm">
+          <table class="w-full min-w-[900px] border-collapse text-left">
+            <thead class="bg-floral-white text-sm text-charcoal-brown/70">
+              <tr>
+                <th class="px-5 py-4 font-semibold">Kandydat</th>
+                <th class="px-5 py-4 font-semibold">Doświadczenie</th>
+                <th class="px-5 py-4 font-semibold">Portfolio</th>
+                <th class="px-5 py-4 font-semibold">Status</th>
+                <th class="px-5 py-4 font-semibold">Data zgłoszenia</th>
+                <th class="px-5 py-4 font-semibold">Decyzja</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-silver/40 text-charcoal-brown">
+              <tr v-for="application in mentorApplications" :key="application.id" class="align-top">
+                <td class="px-5 py-4">
+                  <p class="font-semibold">{{ application.firstName }} {{ application.lastName }}</p>
+                  <p class="mt-1 text-sm">{{ application.username }} · {{ application.email }}</p>
+                </td>
+                <td class="max-w-lg whitespace-pre-wrap px-5 py-4 text-sm">{{ application.experience }}</td>
+                <td class="px-5 py-4">
+                  <a v-if="application.portfolioUrl" :href="application.portfolioUrl" target="_blank" rel="noopener noreferrer" class="font-medium text-spicy-paprika underline">Otwórz portfolio</a>
+                  <span v-else class="text-silver">Brak</span>
+                </td>
+                <td class="px-5 py-4">
+                  <span class="rounded-full bg-sky-blue/10 px-3 py-1 text-xs font-semibold text-sky-blue">{{ application.status === 'Pending' ? 'Oczekuje' : application.status }}</span>
+                </td>
+                <td class="whitespace-nowrap px-5 py-4 text-sm">{{ new Date(application.submittedAt).toLocaleString() }}</td>
+                <td class="px-5 py-4">
+                  <div v-if="application.status === 'Pending'" class="flex gap-2">
+                    <button
+                      type="button"
+                      :disabled="reviewingApplicationId === application.id"
+                      class="rounded-md bg-green-700 px-3 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50"
+                      @click="reviewMentorApplication(application.id, 'Approved')"
+                    >Zatwierdź</button>
+                    <button
+                      type="button"
+                      :disabled="reviewingApplicationId === application.id"
+                      class="rounded-md border border-red-700 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                      @click="reviewMentorApplication(application.id, 'Rejected')"
+                    >Odrzuć</button>
+                  </div>
+                  <span v-else class="text-sm text-silver">Rozpatrzono</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-else-if="!mentorApplicationsError" class="rounded-xl border border-silver/50 bg-white p-6 text-charcoal-brown/70 shadow-sm">
+          Nie ma jeszcze zgłoszeń na mentora.
         </p>
       </section>
     </main>

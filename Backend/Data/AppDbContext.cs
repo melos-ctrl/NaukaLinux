@@ -21,4 +21,13 @@ public class AppDbContext : DbContext
     public DbSet<Feedback> Feedbacks { get; set; }
     public DbSet<LessonBlock> LessonBlocks { get; set; }
     public DbSet<QuizOption> QuizOptions { get; set; }
+    public DbSet<MentorApplication> MentorApplications { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<LessonBlock>()
+            .Property(block => block.QuestionType)
+            .HasDefaultValue(QuestionType.MultipleChoice)
+            .HasSentinel(QuestionType.MultipleChoice);
+    }
 }

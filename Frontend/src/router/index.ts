@@ -12,6 +12,7 @@ import ResetPasswordView from '@/views/ResetPasswordView.vue';
 import SandboxView from '@/views/SandboxView.vue';
 import SettingsView from '@/views/SettingsView.vue';
 import AdminView from '@/views/AdminView.vue';
+import BeAMentorView from '@/views/BeAMentorView.vue';
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -87,6 +88,12 @@ const routes: Array<RouteRecordRaw> = [
     name: "admin",
     component: AdminView,
     meta: { requiresAdmin: true },
+  },
+  {
+    path: "/be-a-mentor",
+    name: "be-a-mentor",
+    component: BeAMentorView,
+    meta: { requiresAuth: true },
   }
 ]
 
@@ -99,6 +106,10 @@ const router = createRouter({
 router.beforeEach((to) => {
   const token = localStorage.getItem('token')
   const role = localStorage.getItem('role')?.toLowerCase()
+
+  if (to.meta.requiresAuth && !token) {
+    return { name: 'login' }
+  }
 
   if (!to.meta.requiresAdmin) {
     if (!to.meta.requiresCourseRole) {

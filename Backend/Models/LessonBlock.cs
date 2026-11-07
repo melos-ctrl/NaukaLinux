@@ -12,6 +12,7 @@ public class LessonBlock
     public string? VideoUrl { get; set; }
     public string? TextContent { get; set; }
     public string? QuestionText { get; set; }
+    public QuestionType QuestionType { get; set; } = QuestionType.MultipleChoice;
     public string? FrontText { get; set; }
     public string? BackText { get; set; }
     

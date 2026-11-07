@@ -123,6 +123,7 @@ public class CoursesController : ControllerBase
                     OrderIndex = blockDto.OrderIndex,
                     TextContent = blockDto.TextContent,
                     QuestionText = blockDto.QuestionText,
+                    QuestionType = blockDto.QuestionType,
                     FrontText = blockDto.FrontText,
                     BackText = blockDto.BackText,
                     VideoUrl = blockDto.VideoUrl,
@@ -181,14 +182,24 @@ public class CoursesController : ControllerBase
 
         if (course == null) return NotFound("Nie znaleziono kursu.");
         
-        var isEnrolled = await _context.CourseEnrollments.AnyAsync(e => e.CourseId == courseId && e.UserId == userId);
+        var isAdmin = User.IsInRole("Admin");
+        var isOwner = course.MentorId == userId;
+        var enrollment = await _context.CourseEnrollments
+            .FirstOrDefaultAsync(e => e.CourseId == courseId && e.UserId == userId);
+        var isEnrolled = enrollment != null;
     
-        if (course.MentorId != userId && !isEnrolled && !User.IsInRole("Admin"))
+        if (!isOwner && !isEnrolled && !isAdmin)
         {
             return Forbid("Nie masz dostępu do tego kursu. Musisz się najpierw zapisać.");
         }
 
-        return Ok(course);
+        if (enrollment != null)
+        {
+            enrollment.LastOpenedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+
+        return Ok(CourseContentDto.FromCourse(course, isOwner || isAdmin));
     }
     
     [HttpGet("my-courses")]

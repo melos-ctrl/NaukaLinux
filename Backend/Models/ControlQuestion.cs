@@ -2,10 +2,10 @@ namespace Backend.Models;
 
 public enum QuestionType
 {
-    Flashcard,
-    TrueFalse,
-    TextAnwser,
-    MultipleChoice
+    Flashcard = 0,
+    TrueFalse = 1,
+    TextAnswer = 2,
+    MultipleChoice = 3
 }
 
 public class ControlQuestion

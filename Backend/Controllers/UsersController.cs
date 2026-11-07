@@ -200,7 +200,8 @@ public class UsersController : ControllerBase
                 {
                     courseId = course.Id,
                     title = course.Title,
-                    description = course.Description
+                    description = course.Description,
+                    lastOpenedAt = enrollment.LastOpenedAt
                 })
             .ToListAsync(cancellationToken);
 

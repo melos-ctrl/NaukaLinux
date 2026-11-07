@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using Backend.Models;
+
 namespace Backend.DTOs;
 
 public class CreateLessonBlockDto
@@ -6,6 +9,8 @@ public class CreateLessonBlockDto
     public int OrderIndex { get; set; }
     public string? TextContent { get; set; }
     public string? QuestionText { get; set; }
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public QuestionType QuestionType { get; set; } = QuestionType.MultipleChoice;
     public string? FrontText { get; set; }
     public string? BackText { get; set; }
     

@@ -70,6 +70,7 @@ onUnmounted(() => { document.removeEventListener('click', isDropdownClosed); });
         <router-link to="/mentor-dashboard" class="hover:text-spicy-paprika transition-colors" active-class="text-spicy-paprika font-bold">Kursy</router-link>
         <router-link to="/course-creator" class="hover:text-spicy-paprika transition-colors" active-class="text-spicy-paprika font-bold">Kreator Kursu</router-link>
         <router-link to="/admin" class="hover:text-spicy-paprika transition-colors" active-class="text-spicy-paprika font-bold">Panel Admina</router-link>
+        <router-link to="/admin?tab=mentorApplications" class="hover:text-spicy-paprika transition-colors" active-class="text-spicy-paprika font-bold">Zgłoszenia mentorów</router-link>
         <router-link to="/courses" class="hover:text-spicy-paprika transition-colors" active-class="text-spicy-paprika font-bold">Katalog</router-link>
       </template>
 
@@ -92,6 +93,9 @@ onUnmounted(() => { document.removeEventListener('click', isDropdownClosed); });
     
     <!-- Widok Niezalogowanego -->
     <template v-if="!isLoggedIn">
+      <router-link to="/be-a-mentor" class="px-5 py-2 bg-spicy-paprika text-floral-white rounded-md font-bold shadow-sm hover:opacity-90 hover:shadow-md transition-all">
+        Zostań Mentorem
+      </router-link>
       <router-link to="/login" class="font-semibold text-floral-white hover:text-spicy-paprika transition-colors">
         Zaloguj się
       </router-link>
