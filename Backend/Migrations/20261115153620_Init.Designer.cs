@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Backend.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261114223610_odpowiedziWidoczne")]
-    partial class odpowiedziWidoczne
+    [Migration("20261115153620_Init")]
+    partial class Init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -333,6 +333,43 @@ namespace Backend.Migrations
                     b.ToTable("QuizOptions");
                 });
 
+            modelBuilder.Entity("Backend.Models.StudentAnswer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsCorrect")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("LessonBlockId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OptionIdsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TextAnswer")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LessonBlockId");
+
+                    b.HasIndex("UserId", "LessonBlockId")
+                        .IsUnique();
+
+                    b.ToTable("StudentAnswers");
+                });
+
             modelBuilder.Entity("Backend.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -506,6 +543,25 @@ namespace Backend.Migrations
                         .IsRequired();
 
                     b.Navigation("LessonBlock");
+                });
+
+            modelBuilder.Entity("Backend.Models.StudentAnswer", b =>
+                {
+                    b.HasOne("Backend.Models.LessonBlock", "LessonBlock")
+                        .WithMany()
+                        .HasForeignKey("LessonBlockId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Backend.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LessonBlock");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Backend.Models.UserProgress", b =>
