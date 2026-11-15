@@ -146,6 +146,14 @@ public class AdminController : ControllerBase
                 CourseTitle = p.Course != null ? p.Course.Title : "Usunięty",
                 p.Score,
                 p.LastCompletedLessonId,
+                CompletedLessonTitle = _context.Lessons
+                    .Where(lesson => lesson.CourseId == p.CourseId && lesson.OrderIndex == p.LastCompletedLessonId)
+                    .Select(lesson => lesson.Title)
+                    .FirstOrDefault(),
+                CompletedModuleTitle = _context.Lessons
+                    .Where(lesson => lesson.CourseId == p.CourseId && lesson.OrderIndex == p.LastCompletedLessonId)
+                    .Select(lesson => lesson.CourseModule != null ? lesson.CourseModule.Title : null)
+                    .FirstOrDefault(),
                 p.UpdatedAt
             })
             .OrderByDescending(p => p.UpdatedAt)

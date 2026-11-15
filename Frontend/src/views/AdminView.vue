@@ -286,7 +286,7 @@ onMounted(fetchAll)
               <tr>
                 <th class="px-5 py-4 font-semibold">Uczestnik</th>
                 <th class="px-5 py-4 font-semibold">Kurs</th>
-                <th class="px-5 py-4 font-semibold">Ukończony etap (Lekcja)</th>
+                <th class="px-5 py-4 font-semibold">Ukończona lekcja</th>
                 <th class="px-5 py-4 font-semibold">Wynik</th>
                 <th class="px-5 py-4 font-semibold">Ostatnia aktywność</th>
               </tr>
@@ -295,7 +295,13 @@ onMounted(fetchAll)
               <tr v-for="result in results" :key="result.id">
                 <td class="px-5 py-4">{{ result.username }} ({{ result.email }})</td>
                 <td class="px-5 py-4 font-medium">{{ result.courseTitle }}</td>
-                <td class="px-5 py-4">Lekcja {{ result.lastCompletedLessonId }}</td>
+                <td class="px-5 py-4">
+                  <template v-if="result.lastCompletedLessonId > 0">
+                    <div>{{ result.completedLessonTitle || `Etap ${result.lastCompletedLessonId}` }}</div>
+                    <div v-if="result.completedModuleTitle" class="mt-1 text-xs text-silver">{{ result.completedModuleTitle }}</div>
+                  </template>
+                  <span v-else class="text-silver">Nie rozpoczęto</span>
+                </td>
                 <td class="px-5 py-4 font-bold text-sage">{{ result.score }} pkt</td>
                 <td class="px-5 py-4">{{ new Date(result.updatedAt).toLocaleString() }}</td>
               </tr>

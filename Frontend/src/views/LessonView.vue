@@ -15,6 +15,10 @@ interface AnswerResult {
   isCorrect: boolean;
 }
 
+interface SavedAnswerDto extends AnswerResult {
+  blockId: number;
+}
+
 type QuestionType = 'MultipleChoice' | 'TrueFalse' | 'TextAnswer';
 
 interface BlockData {
@@ -134,12 +138,22 @@ const fetchCourseContent = async () => {
     try {
       const progRes = await axios.get(`/api/student/course/${courseId}`, config);
       const lastCompletedOrder = progRes.data.lastCompletedLessonOrderIndex || 0;
+      (progRes.data.answers as SavedAnswerDto[] | undefined)?.forEach(answer => {
+        answeredQuestions.value[answer.blockId] = {
+          optionIds: answer.optionIds,
+          textAnswer: answer.textAnswer,
+          isCorrect: answer.isCorrect
+        };
+        selectedOptions.value[answer.blockId] = answer.optionIds;
+        textAnswers.value[answer.blockId] = answer.textAnswer;
+      });
+
       if (lastCompletedOrder > 0) {
         const nextIdx = tasks.value.findIndex(t => t.orderIndex > lastCompletedOrder);
         if (nextIdx !== -1) {
           currentStepIndex.value = nextIdx;
         } else {
-          currentStepIndex.value = tasks.value.length - 1;
+          currentStepIndex.value = 0;
         }
       }
     } catch {
@@ -164,8 +178,10 @@ const saveCurrentStepProgress = async () => {
   if (!courseId || !currentTask.value) return;
 
   let earnedPoints = 0;
-  Object.values(answeredQuestions.value).forEach((ans) => {
-    if (ans?.isCorrect) earnedPoints += 10;
+  currentTask.value.blocks.forEach(block => {
+    if (block.id !== undefined && answeredQuestions.value[block.id]?.isCorrect) {
+      earnedPoints += 10;
+    }
   });
 
   try {
@@ -269,6 +285,23 @@ const checkAnswer = async (blockId: number, optionIds: number[] = [], textAnswer
   } catch (error) {
     console.error('Błąd sprawdzania odpowiedzi:', error);
     answerErrors.value[blockId] = 'Nie udało się sprawdzić odpowiedzi. Spróbuj ponownie.';
+  } finally {
+    checkingAnswers.value[blockId] = false;
+  }
+};
+
+const retryQuestion = async (blockId: number) => {
+  checkingAnswers.value[blockId] = true;
+  answerErrors.value[blockId] = undefined;
+
+  try {
+    await axios.delete(`/api/student/answer/${blockId}`, getConfig());
+    delete answeredQuestions.value[blockId];
+    delete selectedOptions.value[blockId];
+    delete textAnswers.value[blockId];
+  } catch (error) {
+    console.error('Błąd resetowania odpowiedzi:', error);
+    answerErrors.value[blockId] = 'Nie udało się rozpocząć ponownej próby. Spróbuj ponownie.';
   } finally {
     checkingAnswers.value[blockId] = false;
   }
@@ -410,6 +443,12 @@ onMounted(() => {
                     <span v-if="answeredQuestions[block.id]?.isCorrect" class="text-green-400">Świetnie! Poprawna odpowiedź (+10 pkt).</span>
                     <span v-else class="text-red-400">Niestety, to nie jest poprawna odpowiedź.</span>
                   </div>
+                  <button
+                    v-if="block.id !== undefined && answeredQuestions[block.id] && !answeredQuestions[block.id]?.isCorrect"
+                    @click="retryQuestion(block.id)"
+                    :disabled="!!checkingAnswers[block.id]"
+                    class="self-start px-4 py-2 border border-silver/50 text-floral-white rounded-lg hover:bg-silver/10 disabled:opacity-50"
+                  >Spróbuj ponownie</button>
                 </div>
 
                 <div v-else-if="block.options && block.options.length > 0" class="flex flex-col gap-3">
@@ -452,6 +491,12 @@ onMounted(() => {
                       Niestety, to nie jest poprawna odpowiedź.
                     </span>
                   </div>
+                  <button
+                    v-if="block.id !== undefined && answeredQuestions[block.id] && !answeredQuestions[block.id]?.isCorrect"
+                    @click="retryQuestion(block.id)"
+                    :disabled="!!checkingAnswers[block.id]"
+                    class="self-start px-4 py-2 border border-silver/50 text-floral-white rounded-lg hover:bg-silver/10 disabled:opacity-50"
+                  >Spróbuj ponownie</button>
                 </div>
 
               </div>

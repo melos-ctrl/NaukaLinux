@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Backend.Data;
+using System.Text.Json;
 
 namespace Backend.Controllers;
 
@@ -50,12 +51,29 @@ public class StudentController : ControllerBase
 
         var progress = await _context.UserProgresses
             .FirstOrDefaultAsync(p => p.UserId == userId && p.CourseId == courseId);
+        var savedAnswers = await _context.StudentAnswers
+            .Where(answer => answer.UserId == userId && answer.LessonBlock!.Lesson!.CourseId == courseId)
+            .Select(answer => new
+            {
+                answer.LessonBlockId,
+                answer.OptionIdsJson,
+                answer.TextAnswer,
+                answer.IsCorrect
+            })
+            .ToListAsync();
 
         return Ok(new
         {
             Course = CourseContentDto.FromCourse(course, includeAnswerKey: false),
             LastCompletedLessonOrderIndex = progress?.LastCompletedLessonId ?? 0,
-            Score = progress?.Score ?? 0
+            Score = progress?.Score ?? 0,
+            Answers = savedAnswers.Select(answer => new
+            {
+                BlockId = answer.LessonBlockId,
+                OptionIds = JsonSerializer.Deserialize<List<int>>(answer.OptionIdsJson) ?? new List<int>(),
+                answer.TextAnswer,
+                answer.IsCorrect
+            })
         });
     }
 
@@ -121,7 +139,56 @@ public class StudentController : ControllerBase
                 return BadRequest("Ten typ pytania nie jest obsługiwany.");
         }
 
+        var savedAnswer = await _context.StudentAnswers
+            .FirstOrDefaultAsync(saved => saved.UserId == userId && saved.LessonBlockId == blockId);
+        if (savedAnswer == null)
+        {
+            savedAnswer = new StudentAnswer
+            {
+                UserId = userId,
+                LessonBlockId = blockId
+            };
+            _context.StudentAnswers.Add(savedAnswer);
+        }
+
+        savedAnswer.OptionIdsJson = JsonSerializer.Serialize(answer.OptionIds ?? new List<int>());
+        savedAnswer.TextAnswer = answer.TextAnswer;
+        savedAnswer.IsCorrect = isCorrect;
+        savedAnswer.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
         return Ok(new { IsCorrect = isCorrect });
+    }
+
+    [HttpDelete("answer/{blockId}")]
+    public async Task<IActionResult> DeleteAnswer(int blockId)
+    {
+        var userId = GetUserId();
+        var block = await _context.LessonBlocks
+            .Include(lessonBlock => lessonBlock.Lesson)
+                .ThenInclude(lesson => lesson!.Course)
+            .FirstOrDefaultAsync(lessonBlock => lessonBlock.Id == blockId);
+
+        if (block?.Lesson?.Course == null) return NotFound("Nie znaleziono pytania.");
+
+        var course = block.Lesson.Course;
+        var isAdmin = User.IsInRole("Admin");
+        var isOwner = course.MentorId == userId;
+        var isEnrolled = await _context.CourseEnrollments
+            .AnyAsync(enrollment => enrollment.CourseId == course.Id && enrollment.UserId == userId);
+
+        if ((!course.isPublished && !isOwner && !isAdmin) || (!isOwner && !isEnrolled && !isAdmin))
+            return Forbid();
+
+        var savedAnswer = await _context.StudentAnswers
+            .FirstOrDefaultAsync(answer => answer.UserId == userId && answer.LessonBlockId == blockId);
+        if (savedAnswer != null)
+        {
+            _context.StudentAnswers.Remove(savedAnswer);
+            await _context.SaveChangesAsync();
+        }
+
+        return NoContent();
     }
 
     // zapis postępu studenta
@@ -148,8 +215,8 @@ public class StudentController : ControllerBase
             if (dto.CompletedLessonOrderIndex > progress.LastCompletedLessonId)
             {
                 progress.LastCompletedLessonId = dto.CompletedLessonOrderIndex;
+                progress.Score += dto.Score;
             }
-            progress.Score += dto.Score;
             progress.UpdatedAt = DateTime.UtcNow;
         }
 

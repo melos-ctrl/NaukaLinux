@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<CourseEnrollment> CourseEnrollments { get; set; }
 
     public DbSet<UserProgress> UserProgresses { get; set; }
+    public DbSet<StudentAnswer> StudentAnswers { get; set; }
     public DbSet<Feedback> Feedbacks { get; set; }
     public DbSet<LessonBlock> LessonBlocks { get; set; }
     public DbSet<QuizOption> QuizOptions { get; set; }
@@ -29,5 +30,21 @@ public class AppDbContext : DbContext
             .Property(block => block.QuestionType)
             .HasDefaultValue(QuestionType.MultipleChoice)
             .HasSentinel(QuestionType.MultipleChoice);
+
+        modelBuilder.Entity<StudentAnswer>()
+            .HasIndex(answer => new { answer.UserId, answer.LessonBlockId })
+            .IsUnique();
+
+        modelBuilder.Entity<StudentAnswer>()
+            .HasOne(answer => answer.User)
+            .WithMany()
+            .HasForeignKey(answer => answer.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StudentAnswer>()
+            .HasOne(answer => answer.LessonBlock)
+            .WithMany()
+            .HasForeignKey(answer => answer.LessonBlockId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

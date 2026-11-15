@@ -157,6 +157,18 @@ const removeOption = (block: CourseBlock, index: number) => {
   block.options?.splice(index, 1)
 }
 
+const onOptionCorrectChange = (block: CourseBlock, selectedIndex: number) => {
+  if (block.questionType !== 'TrueFalse' || !block.options || !block.options[selectedIndex]?.isCorrect) {
+    return
+  }
+
+  block.options.forEach((option, index) => {
+    if (index !== selectedIndex) {
+      option.isCorrect = false
+    }
+  })
+}
+
 const onQuestionTypeChange = (block: CourseBlock) => {
   if (block.questionType === 'TrueFalse' && (!block.options || block.options.every(option => !option.text.trim()))) {
     block.options = [
@@ -387,7 +399,7 @@ const publishCourse = () => saveCourseData(true)
                   <div class="pl-4 border-l-2 border-amethyst/30">
                     <p class="text-xs text-silver mb-2">{{ block.questionType === 'TextAnswer' ? 'Akceptowane odpowiedzi' : block.questionType === 'TrueFalse' ? 'Opcje prawda/fałsz, zaznacz poprawną' : 'Opcje odpowiedzi, zaznacz wszystkie poprawne' }}</p>
                     <div v-for="(option, oIndex) in block.options" :key="oIndex" class="flex items-center gap-3 mb-2">
-                      <input v-if="block.questionType !== 'TextAnswer'" v-model="option.isCorrect" type="checkbox" class="w-4 h-4" :aria-label="`Poprawna odpowiedź ${oIndex + 1}`" />
+                      <input v-if="block.questionType !== 'TextAnswer'" v-model="option.isCorrect" @change="onOptionCorrectChange(block, oIndex)" type="checkbox" class="w-4 h-4" :aria-label="`Poprawna odpowiedź ${oIndex + 1}`" />
                       <input v-model="option.text" type="text" :placeholder="block.questionType === 'TextAnswer' ? 'Akceptowana odpowiedź...' : 'Odpowiedź...'" class="flex-1 px-3 py-1.5 border border-silver rounded-md text-sm" />
                       <button @click="removeOption(block, oIndex)" class="text-xs text-silver hover:text-spicy-paprika">Usuń</button>
                     </div>

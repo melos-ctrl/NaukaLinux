@@ -93,9 +93,6 @@ onUnmounted(() => { document.removeEventListener('click', isDropdownClosed); });
     
     <!-- Widok Niezalogowanego -->
     <template v-if="!isLoggedIn">
-      <router-link to="/be-a-mentor" class="px-5 py-2 bg-spicy-paprika text-floral-white rounded-md font-bold shadow-sm hover:opacity-90 hover:shadow-md transition-all">
-        Zostań Mentorem
-      </router-link>
       <router-link to="/login" class="font-semibold text-floral-white hover:text-spicy-paprika transition-colors">
         Zaloguj się
       </router-link>
@@ -106,6 +103,13 @@ onUnmounted(() => { document.removeEventListener('click', isDropdownClosed); });
 
     <!-- Widok Zalogowanego (Mentor i Użytkownik) -->
     <template v-else>
+      <router-link
+        v-if="userRole !== 'mentor' && userRole !== 'admin'"
+        to="/be-a-mentor"
+        class="px-5 py-2 bg-spicy-paprika text-floral-white rounded-md font-bold shadow-sm hover:opacity-90 hover:shadow-md transition-all"
+      >
+        Zostań Mentorem
+      </router-link>
       <button 
         @click="toggleDropdown" 
         class="flex items-center gap-2 px-4 py-2 rounded-md font-semibold transition-all border"
