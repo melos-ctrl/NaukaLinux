@@ -29,6 +29,26 @@ public class ResendEmailService : IEmailService
         await _resend.EmailSendAsync(message);
     }
 
+    public async Task SendEmailVerificationEmailAsync(string toEmail, string username, string verificationLink)
+    {
+        var safeUsername = System.Net.WebUtility.HtmlEncode(username);
+        var message = new EmailMessage
+        {
+            From = "NaukaLinux <powiadomienia@naukalinux.pl>",
+            To = { toEmail },
+            Subject = "Potwierdź adres e-mail - NaukaLinux",
+            HtmlBody = $@"
+                <div style='font-family: Arial, sans-serif; padding: 20px; color: #333;'>
+                    <h2>Cześć {safeUsername}!</h2>
+                    <p>Potwierdź swój adres e-mail, aby aktywować konto NaukaLinux.</p>
+                    <p><a href='{verificationLink}'>Potwierdź adres e-mail</a></p>
+                    <p>Link wygaśnie za 24 godziny. Jeśli nie zakładałeś konta, zignoruj tę wiadomość.</p>
+                </div>"
+        };
+
+        await _resend.EmailSendAsync(message);
+    }
+
     public async Task SendForgotPasswordEmailAsync(string toEmail, string resetLink)
 {
     var message = new EmailMessage

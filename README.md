@@ -23,6 +23,10 @@ Platforma e-learningowa stworzona do nauki systemów z rodziny Linux i administr
 * **Baza Danych:** PostgreSQL (uruchamiany w Dockerze)
 * **Zabezpieczenia:** BCrypt (haszowanie haseł), JWT (autoryzacja i autentykacja)
 
+## Konfiguracja uruchomienia
+
+Backend korzysta z klucza Resend ustawianego jako zmienna środowiskowa `Resend__ApiKey`. Adres frontendu używany w linkach e-mail ustawia się przez `FrontendUrl`; lokalnie jest to `http://localhost:5173`, a na wdrożeniu należy podać publiczny adres aplikacji. Po pobraniu zmian zastosuj migracje bazy poleceniem `dotnet ef database update --project Backend/Backend.csproj --startup-project Backend/Backend.csproj`.
+
 ## Roadmapa Projektu (Plan Rozwoju)
 
 Projekt jest aktywnie rozwijany. Poniżej znajduje się lista ukończonych oraz planowanych funkcjonalności:

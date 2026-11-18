@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Backend.Data;
 using Backend.Models;
@@ -217,6 +218,101 @@ public class CoursesController : ControllerBase
             .ToListAsync();
 
         return Ok(courses);
+    }
+
+    [HttpGet("{courseId:int}/statistics")]
+    [Authorize(Roles = "Admin,Mentor")]
+    public async Task<IActionResult> GetCourseStatistics(int courseId)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userIdString == null || !int.TryParse(userIdString, out var userId)) return Unauthorized();
+
+        var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == courseId);
+        if (course == null) return NotFound("Nie znaleziono kursu.");
+        if (!User.IsInRole("Admin") && course.MentorId != userId) return Forbid();
+
+        var blocks = await _context.LessonBlocks
+            .Where(block => block.Lesson != null && block.Lesson.CourseId == courseId && block.QuestionText != null)
+            .Include(block => block.Lesson)
+            .Include(block => block.Options)
+            .OrderBy(block => block.Lesson!.OrderIndex)
+            .ThenBy(block => block.OrderIndex)
+            .ToListAsync();
+
+        var blockIds = blocks.Select(block => block.Id).ToList();
+        var answers = await _context.StudentAnswers
+            .Where(answer => blockIds.Contains(answer.LessonBlockId))
+            .Include(answer => answer.User)
+            .ToListAsync();
+
+        var questions = blocks.Select(block =>
+        {
+            var blockAnswers = answers.Where(answer => answer.LessonBlockId == block.Id).ToList();
+            var decodedAnswers = blockAnswers.Select(answer => new
+            {
+                Answer = answer,
+                OptionIds = JsonSerializer.Deserialize<List<int>>(answer.OptionIdsJson) ?? new List<int>()
+            }).ToList();
+            var respondentCount = blockAnswers.Select(answer => answer.UserId).Distinct().Count();
+
+            var options = block.Options.OrderBy(option => option.Id).Select(option =>
+            {
+                var selected = decodedAnswers
+                    .Where(item => item.OptionIds.Contains(option.Id))
+                    .GroupBy(item => item.Answer.UserId)
+                    .Select(group => group.First().Answer)
+                    .ToList();
+
+                return new
+                {
+                    OptionId = option.Id,
+                    OptionText = option.OptionText,
+                    SelectionCount = selected.Count,
+                    Percentage = respondentCount == 0 ? 0 : Math.Round(selected.Count * 100d / respondentCount, 1),
+                    Students = selected
+                        .Select(answer => answer.User?.Username ?? "Usunięty użytkownik")
+                        .OrderBy(username => username)
+                        .ToList()
+                };
+            }).ToList();
+
+            var textAnswers = decodedAnswers
+                .Where(item => !string.IsNullOrWhiteSpace(item.Answer.TextAnswer))
+                .GroupBy(item => item.Answer.TextAnswer!.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                {
+                    var selected = group
+                        .GroupBy(item => item.Answer.UserId)
+                        .Select(userAnswers => userAnswers.First().Answer)
+                        .ToList();
+
+                    return new
+                    {
+                        AnswerText = group.First().Answer.TextAnswer!.Trim(),
+                        SelectionCount = selected.Count,
+                        Percentage = respondentCount == 0 ? 0 : Math.Round(selected.Count * 100d / respondentCount, 1),
+                        Students = selected
+                            .Select(answer => answer.User?.Username ?? "Usunięty użytkownik")
+                            .OrderBy(username => username)
+                            .ToList()
+                    };
+                })
+                .OrderByDescending(answer => answer.SelectionCount)
+                .ToList();
+
+            return new
+            {
+                BlockId = block.Id,
+                LessonTitle = block.Lesson?.Title ?? "Lekcja",
+                QuestionText = block.QuestionText,
+                QuestionType = block.QuestionType.ToString(),
+                ResponseCount = respondentCount,
+                Options = options,
+                TextAnswers = textAnswers
+            };
+        }).ToList();
+
+        return Ok(new { CourseId = course.Id, CourseTitle = course.Title, Questions = questions });
     }
 
     // dodatkowe endpointy dla mentroa i admina 

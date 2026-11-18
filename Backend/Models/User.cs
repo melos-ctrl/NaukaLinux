@@ -6,6 +6,9 @@ public class User
     public string Username { get; set; }
     public string Email { get; set; }
     public string PasswordHash { get; set; }
+    public bool IsEmailVerified { get; set; }
+    public string? EmailVerificationTokenHash { get; set; }
+    public DateTime? EmailVerificationTokenExpiry { get; set; }
     
     public string? AvatarUrl { get; set; }
 

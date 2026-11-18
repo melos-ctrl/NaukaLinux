@@ -12,13 +12,44 @@ interface Course {
   isPublished: boolean;
 }
 
+interface QuestionStatistics {
+  blockId: number;
+  lessonTitle: string;
+  questionText: string;
+  questionType: string;
+  responseCount: number;
+  options: Array<{
+    optionId: number;
+    optionText: string;
+    selectionCount: number;
+    percentage: number;
+    students: string[];
+  }>;
+  textAnswers: Array<{
+    answerText: string;
+    selectionCount: number;
+    percentage: number;
+    students: string[];
+  }>;
+}
+
+interface CourseStatistics {
+  courseId: number;
+  courseTitle: string;
+  questions: QuestionStatistics[];
+}
+
 const courses = ref<Course[]>([]);
 const results = ref<any[]>([]);
 const feedbacks = ref<any[]>([]);
+const statistics = ref<CourseStatistics | null>(null);
+const statisticsCourseId = ref<number | null>(null);
+const statisticsLoading = ref(false);
+const statisticsError = ref('');
 
 const isLoading = ref(true);
 const errorMessage = ref('');
-const activeTab = ref<'drafts' | 'published' | 'results' | 'feedbacks'>('drafts');
+const activeTab = ref<'drafts' | 'published' | 'results' | 'feedbacks' | 'statistics'>('drafts');
 const isAdmin = localStorage.getItem('role')?.toLowerCase() === 'admin';
 
 const getConfig = () => {
@@ -70,6 +101,41 @@ const createNewCourse = () => {
   router.push('/course-creator');
 };
 
+const loadStatistics = async (courseId: number) => {
+  statisticsCourseId.value = courseId;
+  statisticsLoading.value = true;
+  statisticsError.value = '';
+
+  try {
+    const response = await axios.get(`/api/courses/${courseId}/statistics`, getConfig());
+    statistics.value = response.data as CourseStatistics;
+  } catch (error) {
+    console.error('Błąd podczas pobierania statystyk kursu:', error);
+    statistics.value = null;
+    statisticsError.value = 'Nie udało się pobrać statystyk tego kursu.';
+  } finally {
+    statisticsLoading.value = false;
+  }
+};
+
+const openStatistics = (courseId?: number) => {
+  activeTab.value = 'statistics';
+  const selectedCourseId = courseId ?? statisticsCourseId.value ?? courses.value[0]?.id;
+
+  if (selectedCourseId) {
+    void loadStatistics(selectedCourseId);
+  } else {
+    statistics.value = null;
+    statisticsLoading.value = false;
+    statisticsError.value = 'Nie masz jeszcze żadnego kursu do sprawdzenia.';
+  }
+};
+
+const changeStatisticsCourse = (event: Event) => {
+  const courseId = Number((event.target as HTMLSelectElement).value);
+  if (Number.isInteger(courseId) && courseId > 0) void loadStatistics(courseId);
+};
+
 onMounted(() => {
   fetchMentorData();
 });
@@ -87,7 +153,7 @@ onMounted(() => {
             {{ isAdmin ? 'Przeglądaj i edytuj kursy na platformie' : 'Zarządzaj swoimi kursami, sprawdzaj wyniki uczniów i reaguj na zgłoszenia' }}
           </p>
         </div>
-        <button 
+        <button
           @click="createNewCourse"
           class="px-5 py-2.5 bg-spicy-paprika hover:opacity-90 text-floral-white font-bold rounded-lg shadow-md transition-all flex items-center gap-2"
         >
@@ -124,6 +190,13 @@ onMounted(() => {
           :class="activeTab === 'feedbacks' ? 'text-spicy-paprika border-spicy-paprika' : 'text-gray-500 border-transparent hover:text-charcoal-brown'"
         >
           Zgłoszenia i opinie ({{ feedbacks.length }})
+        </button>
+        <button 
+          @click="openStatistics()"
+          class="pb-3 px-2 font-bold transition-all relative border-b-2"
+          :class="activeTab === 'statistics' ? 'text-spicy-paprika border-spicy-paprika' : 'text-gray-500 border-transparent hover:text-charcoal-brown'"
+        >
+          Statystyki
         </button>
       </div>
 
@@ -175,6 +248,9 @@ onMounted(() => {
                 <p class="text-sm text-gray-600 line-clamp-2">{{ course.description || 'Brak opisu.' }}</p>
               </div>
               <div class="mt-6 pt-4 border-t border-gray-100 flex justify-end gap-2">
+                <button @click="openStatistics(course.id)" class="px-4 py-2 border border-spicy-paprika text-spicy-paprika rounded hover:bg-spicy-paprika hover:text-white transition-colors text-sm font-bold">
+                  Statystyki
+                </button>
                 <button @click="editCourse(course.id)" class="px-4 py-2 bg-charcoal-brown text-floral-white rounded hover:bg-spicy-paprika transition-colors text-sm font-bold">
                   Zarządzaj
                 </button>
@@ -253,6 +329,101 @@ onMounted(() => {
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- 5. Statystyki odpowiedzi -->
+        <div v-if="activeTab === 'statistics'" class="space-y-6">
+          <div class="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p class="text-sm font-medium text-gray-500">Odpowiedzi kursantów</p>
+              <h2 class="text-xl font-bold text-charcoal-brown">Statystyki kursu</h2>
+            </div>
+            <label class="flex min-w-56 flex-col gap-1 text-sm font-semibold text-charcoal-brown">
+              Kurs
+              <select
+                :value="statisticsCourseId ?? ''"
+                class="rounded-lg border border-silver/70 bg-white px-3 py-2"
+                :disabled="courses.length === 0"
+                @change="changeStatisticsCourse"
+              >
+                <option value="" disabled>Wybierz kurs</option>
+                <option v-for="course in courses" :key="course.id" :value="course.id">
+                  {{ course.title }}
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <p v-if="statisticsLoading" class="py-8 text-center font-semibold text-gray-500" role="status">
+            Ładowanie statystyk...
+          </p>
+          <p v-else-if="statisticsError" class="rounded-lg bg-red-50 p-4 text-red-700" role="alert">
+            {{ statisticsError }}
+          </p>
+          <div v-else-if="statistics" class="space-y-4">
+            <p class="text-sm text-gray-600">
+              Procent liczony jest wśród osób, które odpowiedziały na dane pytanie. Przy pytaniach wielokrotnego wyboru suma procentów może przekraczać 100%.
+            </p>
+            <div v-if="statistics.questions.length" class="space-y-4">
+              <article
+                v-for="question in statistics.questions"
+                :key="question.blockId"
+                class="rounded-xl border border-silver/50 bg-white p-5 shadow-sm"
+              >
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p class="text-sm font-semibold text-spicy-paprika">{{ question.lessonTitle }}</p>
+                    <h3 class="mt-1 break-words font-bold text-charcoal-brown">{{ question.questionText }}</h3>
+                  </div>
+                  <span class="shrink-0 rounded-full bg-silver/20 px-3 py-1 text-sm text-charcoal-brown">
+                    {{ question.responseCount }} odp.
+                  </span>
+                </div>
+
+                <div v-if="question.options.length" class="mt-5 space-y-4">
+                  <div v-for="option in question.options" :key="option.optionId" class="space-y-1.5">
+                    <div class="flex flex-wrap justify-between gap-2 text-sm">
+                      <span class="font-medium text-charcoal-brown">{{ option.optionText }}</span>
+                      <span class="font-semibold text-charcoal-brown">
+                        {{ option.percentage }}% ({{ option.selectionCount }})
+                      </span>
+                    </div>
+                    <div class="h-2 overflow-hidden rounded-full bg-silver/30" role="presentation">
+                      <div
+                        class="h-full rounded-full bg-spicy-paprika"
+                        :style="{ width: `${Math.min(option.percentage, 100)}%` }"
+                      ></div>
+                    </div>
+                    <p class="break-words text-sm text-gray-600">
+                      Wybrali: {{ option.students.length ? option.students.join(', ') : 'nikt' }}
+                    </p>
+                  </div>
+                </div>
+
+                <div v-if="question.textAnswers.length" class="mt-5 space-y-3">
+                  <h4 class="text-sm font-bold text-charcoal-brown">Odpowiedzi tekstowe</h4>
+                  <div v-for="answer in question.textAnswers" :key="answer.answerText" class="rounded-lg bg-floral-white p-3">
+                    <div class="flex flex-wrap justify-between gap-2 text-sm">
+                      <span class="break-words font-medium text-charcoal-brown">{{ answer.answerText }}</span>
+                      <span class="shrink-0 font-semibold text-charcoal-brown">
+                        {{ answer.percentage }}% ({{ answer.selectionCount }})
+                      </span>
+                    </div>
+                    <p class="mt-1 break-words text-sm text-gray-600">
+                      Odpowiedzieli: {{ answer.students.join(', ') }}
+                    </p>
+                  </div>
+                </div>
+
+                <p v-if="!question.responseCount" class="mt-4 text-sm text-gray-500">
+                  Nikt jeszcze nie odpowiedział na to pytanie.
+                </p>
+              </article>
+            </div>
+            <p v-else class="rounded-xl border border-silver/50 bg-white p-6 text-gray-600">
+              Ten kurs nie zawiera pytań do statystyk.
+            </p>
           </div>
         </div>
 

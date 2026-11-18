@@ -13,6 +13,7 @@ import SandboxView from '@/views/SandboxView.vue';
 import SettingsView from '@/views/SettingsView.vue';
 import AdminView from '@/views/AdminView.vue';
 import BeAMentorView from '@/views/BeAMentorView.vue';
+import VerifyEmailView from '@/views/VerifyEmailView.vue';
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -39,6 +40,16 @@ const routes: Array<RouteRecordRaw> = [
     path: "/register",
     name: "register",
     component: RegisterView,
+  },
+  {
+    path: "/verify-email",
+    name: "verify-email",
+    component: VerifyEmailView,
+  },
+  {
+    path: "/resend-verification",
+    name: "resend-verification",
+    component: VerifyEmailView,
   },
   {
     path: "/courses",

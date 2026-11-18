@@ -43,7 +43,13 @@ const handleLogin = async () => {
 
       router.push('/') 
     } else {
-      message.value = 'Nieprawidłowy login lub hasło.'
+      const errorText = await response.text()
+      let errorData: { message?: string } = {}
+      try {
+        errorData = JSON.parse(errorText) as { message?: string }
+      } catch {
+      }
+      message.value = errorData.message ?? (errorText || 'Nieprawidłowy login lub hasło.')
       turnstileToken.value = '' // resetowanie Turnsite po nieudanej próbie logowania
     }
   } catch (error) {
