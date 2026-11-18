@@ -20,6 +20,7 @@ const routes: Array<RouteRecordRaw> = [
     path: "/course/:id",
     name: "course-player",
     component: LessonView,
+    meta: { requiresAuth: true },
   },
   {
     path: "/forgot-password",
@@ -83,16 +84,19 @@ const routes: Array<RouteRecordRaw> = [
     path: "/dashboard",
     name: "dashboard",
     component: DashboardView,
+    meta: { requiresAuth: true },
   },
   {
     path: "/sandbox",
     name: "sandbox",
     component: SandboxView,
+    meta: { requiresAuth: true },
   },
   {
     path: "/settings",
     name: "settings",
     component: SettingsView,
+    meta: { requiresAuth: true },
   },
   {
     path: "/admin",
@@ -114,35 +118,22 @@ const router = createRouter({
   routes: routes,
 })
 
+// Uwaga: to tylko wygoda dla użytkownika (żeby nie widział pustych stron).
+// Prawdziwa ochrona danych jest na backendzie ([Authorize]).
 router.beforeEach((to) => {
   const token = localStorage.getItem('token')
   const role = localStorage.getItem('role')?.toLowerCase()
 
-  if (to.meta.requiresAuth && !token) {
-    return { name: 'login' }
+  const needsLogin = to.meta.requiresAuth || to.meta.requiresCourseRole || to.meta.requiresAdmin
+  if (needsLogin && !token) {
+    return { name: 'login', query: { redirect: to.fullPath } }
   }
 
-  if (!to.meta.requiresAdmin) {
-    if (!to.meta.requiresCourseRole) {
-      return true
-    }
-
-    if (!token) {
-      return { name: 'login' }
-    }
-
-    if (role !== 'admin' && role !== 'mentor') {
-      return { name: 'dashboard' }
-    }
-
-    return true
+  if (to.meta.requiresAdmin && role !== 'admin') {
+    return { name: 'dashboard' }
   }
 
-  if (!token) {
-    return { name: 'login' }
-  }
-
-  if (role !== 'admin') {
+  if (to.meta.requiresCourseRole && role !== 'admin' && role !== 'mentor') {
     return { name: 'dashboard' }
   }
 

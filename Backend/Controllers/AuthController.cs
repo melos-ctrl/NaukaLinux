@@ -1,11 +1,12 @@
 using Backend.DTOs;
 using Backend.Models;
+using Backend.Service;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Backend.Data;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
-using System.Security.Cryptography;
 using System.Security.Claims;
 using System.Text;
 
@@ -13,8 +14,12 @@ namespace Backend.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[EnableRateLimiting("auth")]
 public class AuthController : ControllerBase
 {
+    private const string ForgotPasswordResponse =
+        "Jeżeli podany adres email istnieje w naszej bazie danych, wysłaliśmy do Ciebie link do zresetowania hasła.";
+
     private readonly AppDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly IEmailService _emailService;
@@ -24,18 +29,22 @@ public class AuthController : ControllerBase
     {
         _context = context;
         _configuration = configuration;
-        _emailService = emailService; // Przypisujemy wstrzyknięty serwis
+        _emailService = emailService;
         _logger = logger;
     }
+
+    private string FrontendUrl => (_configuration["FrontendUrl"] ?? "http://localhost:5173").TrimEnd('/');
 
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterDto request)
     {
-        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
-        var userExists = await _context.Users.AnyAsync(u => u.Username == request.Username);
+        var normalizedEmail = TokenHelper.NormalizeEmail(request.Email);
+        var username = request.Username.Trim();
+
+        var userExists = await _context.Users.AnyAsync(u => u.Username.ToLower() == username.ToLower());
         if (userExists)
         {
-            return BadRequest("User Exists.");
+            return BadRequest("Ta nazwa użytkownika jest już zajęta.");
         }
 
         var emailExists = await _context.Users.AnyAsync(u => u.Email.ToLower() == normalizedEmail);
@@ -45,23 +54,22 @@ public class AuthController : ControllerBase
         }
 
         string hashedPassword = BCrypt.Net.BCrypt.HashPassword(request.Password);
-        var verificationToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+        var verificationToken = TokenHelper.Generate();
 
         var newUser = new User
-        {   
+        {
             Email = normalizedEmail,
-            Username = request.Username,
+            Username = username,
             PasswordHash = hashedPassword,
             IsEmailVerified = false,
-            EmailVerificationTokenHash = HashToken(verificationToken),
+            EmailVerificationTokenHash = TokenHelper.Hash(verificationToken),
             EmailVerificationTokenExpiry = DateTime.UtcNow.AddHours(24)
         };
-        
+
         _context.Users.Add(newUser);
         await _context.SaveChangesAsync();
 
-        var frontendUrl = (_configuration["FrontendUrl"] ?? "http://localhost:5173").TrimEnd('/');
-        var verificationLink = $"{frontendUrl}/verify-email?token={Uri.EscapeDataString(verificationToken)}";
+        var verificationLink = $"{FrontendUrl}/verify-email?token={Uri.EscapeDataString(verificationToken)}";
         try
         {
             await _emailService.SendEmailVerificationEmailAsync(newUser.Email, newUser.Username, verificationLink);
@@ -83,7 +91,7 @@ public class AuthController : ControllerBase
     [HttpPost("verify-email")]
     public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailDto request)
     {
-        var tokenHash = HashToken(request.Token);
+        var tokenHash = TokenHelper.Hash(request.Token);
         var user = await _context.Users.FirstOrDefaultAsync(u => u.EmailVerificationTokenHash == tokenHash);
 
         if (user == null || user.EmailVerificationTokenExpiry <= DateTime.UtcNow)
@@ -102,7 +110,7 @@ public class AuthController : ControllerBase
     [HttpPost("resend-verification")]
     public async Task<IActionResult> ResendVerification([FromBody] ResendVerificationDto request)
     {
-        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        var normalizedEmail = TokenHelper.NormalizeEmail(request.Email);
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail);
         const string responseMessage = "Jeżeli konto wymaga potwierdzenia, wysłaliśmy nowy link.";
 
@@ -111,13 +119,12 @@ public class AuthController : ControllerBase
             return Ok(new { Message = responseMessage });
         }
 
-        var verificationToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-        user.EmailVerificationTokenHash = HashToken(verificationToken);
+        var verificationToken = TokenHelper.Generate();
+        user.EmailVerificationTokenHash = TokenHelper.Hash(verificationToken);
         user.EmailVerificationTokenExpiry = DateTime.UtcNow.AddHours(24);
         await _context.SaveChangesAsync();
 
-        var frontendUrl = (_configuration["FrontendUrl"] ?? "http://localhost:5173").TrimEnd('/');
-        var verificationLink = $"{frontendUrl}/verify-email?token={Uri.EscapeDataString(verificationToken)}";
+        var verificationLink = $"{FrontendUrl}/verify-email?token={Uri.EscapeDataString(verificationToken)}";
         try
         {
             await _emailService.SendEmailVerificationEmailAsync(user.Email, user.Username, verificationLink);
@@ -138,19 +145,20 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginDto request)
     {
-        // szukanie użytkownika w bazie
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == request.Username);
+        const string invalidCredentials = "Nieprawidłowa nazwa użytkownika lub hasło.";
+
+        var username = request.Username.Trim();
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
         if (user == null)
         {
-            return BadRequest("Invalid Email or password.");
+            return BadRequest(invalidCredentials);
         }
-        
-        // weryfikowanie hasła
+
         bool isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
 
         if (!isPasswordValid)
         {
-            return BadRequest("Invalid Email or password.");
+            return BadRequest(invalidCredentials);
         }
 
         if (!user.IsEmailVerified)
@@ -169,29 +177,41 @@ public class AuthController : ControllerBase
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto request)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
-       if (user == null) return Ok(new { Message = "Jeżeli podany adres email istnieje w naszej bazie danych, wysłaliśmy do Ciebie link do zresetowania hasła." });
+        var normalizedEmail = TokenHelper.NormalizeEmail(request.Email);
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail);
 
-       user.ResetToken = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
-       user.ResetTokenExpiry = DateTime.UtcNow.AddMinutes(15);
-       await _context.SaveChangesAsync();
+        // Ta sama odpowiedź niezależnie od tego, czy konto istnieje - nie zdradzamy, kto ma konto.
+        if (user == null) return Ok(new { Message = ForgotPasswordResponse });
 
-        var frontendUrl = _configuration["FrontendUrl"];
-        var resetLink = $"{frontendUrl}/reset-password?token={user.ResetToken}";
+        var resetToken = TokenHelper.Generate();
+        user.ResetToken = TokenHelper.Hash(resetToken); // w bazie tylko hash
+        user.ResetTokenExpiry = DateTime.UtcNow.AddMinutes(15);
+        await _context.SaveChangesAsync();
 
-        _ = _emailService.SendForgotPasswordEmailAsync(user.Email, resetLink);
+        var resetLink = $"{FrontendUrl}/reset-password?token={Uri.EscapeDataString(resetToken)}";
 
-        return Ok(new { Message = "Jeżeli podany adres email istnieje w naszej bazie danych, wysłaliśmy do Ciebie link do zresetowania hasła." });
+        try
+        {
+            await _emailService.SendForgotPasswordEmailAsync(user.Email, resetLink);
+        }
+        catch (Exception exception)
+        {
+            // Nie zwracamy błędu użytkownikowi (to zdradziłoby, że konto istnieje), ale logujemy problem.
+            _logger.LogError(exception, "Failed to send password reset email for user {UserId}", user.Id);
+        }
+
+        return Ok(new { Message = ForgotPasswordResponse });
     }
 
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto request)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.ResetToken == request.Token);
+        var tokenHash = TokenHelper.Hash(request.Token);
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.ResetToken == tokenHash);
 
         if (user == null || user.ResetTokenExpiry < DateTime.UtcNow)
         {
-            return BadRequest("Invalid or expired token.");
+            return BadRequest("Link do resetu hasła jest nieprawidłowy lub wygasł.");
         }
 
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
@@ -201,7 +221,7 @@ public class AuthController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return Ok(new { Message = "Password has been reset successfully." });
+        return Ok(new { Message = "Hasło zostało zmienione. Możesz się zalogować." });
     }
 
     private string CreateToken(User user)
@@ -214,22 +234,19 @@ public class AuthController : ControllerBase
         };
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
-        
+
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256Signature);
 
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),
-            Expires = DateTime.Now.AddDays(1),
+            Expires = DateTime.UtcNow.AddDays(1),
+            Issuer = _configuration["Jwt:Issuer"],
+            Audience = _configuration["Jwt:Audience"],
             SigningCredentials = creds
         };
         var tokenHandler = new JwtSecurityTokenHandler();
         var token = tokenHandler.CreateToken(tokenDescriptor);
         return tokenHandler.WriteToken(token);
-    }
-
-    private static string HashToken(string token)
-    {
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
     }
 }

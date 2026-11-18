@@ -10,6 +10,21 @@ interface Course {
   title: string;
   description?: string;
   isPublished: boolean;
+  mentorName?: string;
+}
+
+interface MentorResult {
+  id: number;
+  username: string;
+  courseTitle: string;
+  score: number;
+  maxScore: number;
+  lastCompletedLessonId: number;
+  completedLessonTitle?: string | null;
+  completedModuleTitle?: string | null;
+  totalLessons: number;
+  completedLessons: number;
+  updatedAt: string;
 }
 
 interface QuestionStatistics {
@@ -40,7 +55,7 @@ interface CourseStatistics {
 }
 
 const courses = ref<Course[]>([]);
-const results = ref<any[]>([]);
+const results = ref<MentorResult[]>([]);
 const feedbacks = ref<any[]>([]);
 const statistics = ref<CourseStatistics | null>(null);
 const statisticsCourseId = ref<number | null>(null);
@@ -56,6 +71,18 @@ const getConfig = () => {
   const token = localStorage.getItem('token');
   return token ? { headers: { Authorization: `Bearer ${token}` } } : {};
 };
+
+// Procent ukończonych lekcji kursu
+const progressPercent = (r: MentorResult) =>
+  r.totalLessons > 0 ? Math.round((r.completedLessons / r.totalLessons) * 100) : 0;
+
+const formatDate = (value: string) =>
+  new Date(value).toLocaleString('pl-PL', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 
 const fetchMentorData = async () => {
   isLoading.value = true;
@@ -143,7 +170,7 @@ onMounted(() => {
 
 <template>
   <div class="min-h-screen bg-floral-white text-charcoal-brown p-8 flex flex-col items-center">
-    
+
     <div class="w-full max-w-5xl">
       <!-- nagłówek -->
       <header class="flex justify-between items-center bg-charcoal-brown text-floral-white p-6 rounded-xl shadow-md mb-8">
@@ -163,35 +190,35 @@ onMounted(() => {
 
       <!-- zakładki -->
       <div class="flex flex-wrap gap-4 border-b border-silver/50 mb-8">
-        <button 
+        <button
           @click="activeTab = 'drafts'"
           class="pb-3 px-2 font-bold transition-all relative border-b-2"
           :class="activeTab === 'drafts' ? 'text-spicy-paprika border-spicy-paprika' : 'text-gray-500 border-transparent hover:text-charcoal-brown'"
         >
           Wersje robocze ({{ draftCourses.length }})
         </button>
-        <button 
+        <button
           @click="activeTab = 'published'"
           class="pb-3 px-2 font-bold transition-all relative border-b-2"
           :class="activeTab === 'published' ? 'text-spicy-paprika border-spicy-paprika' : 'text-gray-500 border-transparent hover:text-charcoal-brown'"
         >
           Opublikowane ({{ publishedCourses.length }})
         </button>
-        <button 
+        <button
           @click="activeTab = 'results'"
           class="pb-3 px-2 font-bold transition-all relative border-b-2"
           :class="activeTab === 'results' ? 'text-spicy-paprika border-spicy-paprika' : 'text-gray-500 border-transparent hover:text-charcoal-brown'"
         >
           Wyniki kursantów ({{ results.length }})
         </button>
-        <button 
+        <button
           @click="activeTab = 'feedbacks'"
           class="pb-3 px-2 font-bold transition-all relative border-b-2"
           :class="activeTab === 'feedbacks' ? 'text-spicy-paprika border-spicy-paprika' : 'text-gray-500 border-transparent hover:text-charcoal-brown'"
         >
           Zgłoszenia i opinie ({{ feedbacks.length }})
         </button>
-        <button 
+        <button
           @click="openStatistics()"
           class="pb-3 px-2 font-bold transition-all relative border-b-2"
           :class="activeTab === 'statistics' ? 'text-spicy-paprika border-spicy-paprika' : 'text-gray-500 border-transparent hover:text-charcoal-brown'"
@@ -210,7 +237,7 @@ onMounted(() => {
 
       <!-- zawartość zakładek -->
       <div v-else>
-        
+
         <!-- 1. Wersje robocze -->
         <div v-if="activeTab === 'drafts'">
           <div v-if="draftCourses.length === 0" class="text-center py-12 text-gray-500 border-2 border-dashed border-silver rounded-xl">
@@ -221,6 +248,7 @@ onMounted(() => {
               <div>
                 <span class="inline-block px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-bold uppercase rounded mb-3">Szkic</span>
                 <h3 class="text-lg font-bold mb-2">{{ course.title }}</h3>
+                <p v-if="isAdmin" class="text-xs text-gray-500 mb-2">Autor: {{ course.mentorName || 'Nieznany autor' }}</p>
                 <p class="text-sm text-gray-600 line-clamp-2">{{ course.description || 'Brak opisu.' }}</p>
               </div>
               <div class="mt-6 pt-4 border-t border-gray-100 flex justify-end gap-2">
@@ -245,6 +273,7 @@ onMounted(() => {
               <div>
                 <span class="inline-block px-2 py-1 bg-green-100 text-green-700 text-xs font-bold uppercase rounded mb-3">Opublikowany</span>
                 <h3 class="text-lg font-bold mb-2">{{ course.title }}</h3>
+                <p v-if="isAdmin" class="text-xs text-gray-500 mb-2">Autor: {{ course.mentorName || 'Nieznany autor' }}</p>
                 <p class="text-sm text-gray-600 line-clamp-2">{{ course.description || 'Brak opisu.' }}</p>
               </div>
               <div class="mt-6 pt-4 border-t border-gray-100 flex justify-end gap-2">
@@ -268,23 +297,56 @@ onMounted(() => {
             Nikt jeszcze nie rozwiązał zadań w Twoich kursach.
           </div>
           <div v-else class="overflow-x-auto rounded-xl border border-silver/50 bg-white shadow-sm">
-            <table class="w-full min-w-[600px] border-collapse text-left">
+            <table class="w-full min-w-[760px] border-collapse text-left">
               <thead class="bg-floral-white text-sm text-charcoal-brown/70">
                 <tr>
-                  <th class="px-5 py-4 font-semibold">Uczestnik</th>
+                  <th class="px-5 py-4 font-semibold">Kursant</th>
                   <th class="px-5 py-4 font-semibold">Kurs</th>
-                  <th class="px-5 py-4 font-semibold">Ostatnia lekcja</th>
+                  <th class="px-5 py-4 font-semibold w-64">Postęp</th>
                   <th class="px-5 py-4 font-semibold">Wynik</th>
-                  <th class="px-5 py-4 font-semibold">Data</th>
+                  <th class="px-5 py-4 font-semibold">Ostatnia aktywność</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-silver/40">
-                <tr v-for="r in results" :key="r.id">
+                <tr v-for="r in results" :key="r.id" class="align-top">
                   <td class="px-5 py-4 font-medium">{{ r.username }}</td>
                   <td class="px-5 py-4">{{ r.courseTitle }}</td>
-                  <td class="px-5 py-4">Lekcja {{ r.lastCompletedLessonId }}</td>
-                  <td class="px-5 py-4 font-bold text-green-600">{{ r.score }} pkt</td>
-                  <td class="px-5 py-4 text-sm text-gray-500">{{ new Date(r.updatedAt).toLocaleString() }}</td>
+
+                  <td class="px-5 py-4">
+                    <div class="flex items-center justify-between gap-2 text-sm font-semibold">
+                      <span>{{ r.completedLessons }} z {{ r.totalLessons }} lekcji</span>
+                      <span :class="progressPercent(r) === 100 ? 'text-green-600' : 'text-charcoal-brown/70'">
+                        {{ progressPercent(r) === 100 ? 'Ukończony ✓' : `${progressPercent(r)}%` }}
+                      </span>
+                    </div>
+                    <div
+                      class="mt-1.5 h-2 overflow-hidden rounded-full bg-silver/30"
+                      role="progressbar"
+                      :aria-valuenow="progressPercent(r)"
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                    >
+                      <div
+                        class="h-full rounded-full transition-all"
+                        :class="progressPercent(r) === 100 ? 'bg-green-600' : 'bg-spicy-paprika'"
+                        :style="{ width: `${progressPercent(r)}%` }"
+                      ></div>
+                    </div>
+                    <p v-if="r.completedLessonTitle" class="mt-1.5 text-xs text-gray-500">
+                      Ostatnio: {{ r.completedLessonTitle }}<span v-if="r.completedModuleTitle"> · {{ r.completedModuleTitle }}</span>
+                    </p>
+                    <p v-else-if="r.lastCompletedLessonId === 0" class="mt-1.5 text-xs text-gray-400">
+                      Jeszcze nie ukończył żadnej lekcji
+                    </p>
+                  </td>
+
+                  <td class="px-5 py-4 whitespace-nowrap">
+                    <span class="font-bold text-green-600">{{ r.score }}</span>
+                    <span v-if="r.maxScore > 0" class="text-sm text-gray-500"> / {{ r.maxScore }} pkt</span>
+                    <span v-else class="text-sm text-gray-500"> pkt</span>
+                  </td>
+
+                  <td class="px-5 py-4 text-sm text-gray-500 whitespace-nowrap">{{ formatDate(r.updatedAt) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -310,7 +372,7 @@ onMounted(() => {
                 <tr v-for="fb in feedbacks" :key="fb.id">
                   <td class="px-5 py-4 font-medium">{{ fb.username }}</td>
                   <td class="px-5 py-4">
-                    <span 
+                    <span
                       class="rounded-full px-3 py-1 text-xs font-semibold"
                       :class="fb.lessonBlockId ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'"
                     >
@@ -319,8 +381,8 @@ onMounted(() => {
                   </td>
                   <td class="px-5 py-4">{{ fb.message }}</td>
                   <td class="px-5 py-4">
-                    <button 
-                      @click="editCourse(fb.courseId)" 
+                    <button
+                      @click="editCourse(fb.courseId)"
                       class="text-xs font-bold text-spicy-paprika hover:underline"
                     >
                       Przejdź do kursu →

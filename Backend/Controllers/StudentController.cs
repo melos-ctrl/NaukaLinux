@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Backend.Data;
 using System.Text.Json;
+using Backend.Service;
 
 namespace Backend.Controllers;
 
@@ -14,6 +15,9 @@ namespace Backend.Controllers;
 [Authorize]
 public class StudentController : ControllerBase
 {
+    private const int PointsPerCorrectAnswer = AnswerEvaluator.PointsPerCorrectAnswer;
+    private const int MaxFeedbackLength = 2000;
+
     private readonly AppDbContext _context;
 
     public StudentController(AppDbContext context)
@@ -23,7 +27,20 @@ public class StudentController : ControllerBase
 
     private int GetUserId() => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-    // pobiernie kursów i wznawianie od ostatniego etapu
+    /// <summary>
+    /// Czy bieżący użytkownik może pracować z kursem: autor/admin zawsze,
+    /// pozostali tylko z opublikowanym kursem, na który są zapisani.
+    /// </summary>
+    private async Task<bool> CanAccessCourseAsync(Course course, int userId)
+    {
+        if (User.IsInRole("Admin") || course.MentorId == userId) return true;
+        if (!course.isPublished) return false;
+
+        return await _context.CourseEnrollments
+            .AnyAsync(enrollment => enrollment.CourseId == course.Id && enrollment.UserId == userId);
+    }
+
+    // pobieranie kursów i wznawianie od ostatniego etapu
     [HttpGet("course/{courseId}")]
     public async Task<IActionResult> GetCourseWithProgress(int courseId)
     {
@@ -41,12 +58,7 @@ public class StudentController : ControllerBase
 
         if (course == null) return NotFound("Kurs nie istnieje.");
 
-        var isAdmin = User.IsInRole("Admin");
-        var isOwner = course.MentorId == userId;
-        var isEnrolled = await _context.CourseEnrollments
-            .AnyAsync(enrollment => enrollment.CourseId == courseId && enrollment.UserId == userId);
-
-        if ((!course.isPublished && !isOwner && !isAdmin) || (!isOwner && !isEnrolled && !isAdmin))
+        if (!await CanAccessCourseAsync(course, userId))
             return Forbid();
 
         var progress = await _context.UserProgresses
@@ -92,15 +104,11 @@ public class StudentController : ControllerBase
         if (course == null) return NotFound("Nie znaleziono kursu dla zadania.");
 
         var userId = GetUserId();
-        var isAdmin = User.IsInRole("Admin");
-        var isOwner = course.MentorId == userId;
-        var isEnrolled = await _context.CourseEnrollments
-            .AnyAsync(enrollment => enrollment.CourseId == course.Id && enrollment.UserId == userId);
-
-        if ((!course.isPublished && !isOwner && !isAdmin) || (!isOwner && !isEnrolled && !isAdmin))
+        if (!await CanAccessCourseAsync(course, userId))
             return Forbid();
 
-        bool isCorrect;
+        // Walidacja danych wejściowych (błędy formularza => 400). Samą ocenę robi AnswerEvaluator,
+        // ten sam, który przelicza odpowiedzi po edycji kursu.
         switch (block.QuestionType)
         {
             case QuestionType.MultipleChoice:
@@ -110,34 +118,28 @@ public class StudentController : ControllerBase
                     return BadRequest("Wybierz co najmniej jedną odpowiedź.");
                 if (selectedIds.Any(id => block.Options.All(option => option.Id != id)))
                     return BadRequest("Wybrana odpowiedź nie należy do tego pytania.");
-
-                var correctIds = block.Options.Where(option => option.IsCorrect).Select(option => option.Id).ToHashSet();
-                isCorrect = correctIds.Count > 0 && selectedIds.SetEquals(correctIds);
                 break;
             }
             case QuestionType.TrueFalse:
             {
                 if (answer.OptionIds is not { Count: 1 })
                     return BadRequest("Wybierz jedną odpowiedź.");
-
-                var selectedOption = block.Options.FirstOrDefault(option => option.Id == answer.OptionIds[0]);
-                if (selectedOption == null)
+                var selectedOptionId = answer.OptionIds[0];
+                if (block.Options.All(option => option.Id != selectedOptionId))
                     return BadRequest("Wybrana odpowiedź nie należy do tego pytania.");
-                isCorrect = selectedOption.IsCorrect;
                 break;
             }
             case QuestionType.TextAnswer:
             {
                 if (string.IsNullOrWhiteSpace(answer.TextAnswer))
                     return BadRequest("Wpisz odpowiedź.");
-
-                isCorrect = block.Options.Any(option => option.IsCorrect &&
-                    string.Equals(option.OptionText.Trim(), answer.TextAnswer.Trim(), StringComparison.OrdinalIgnoreCase));
                 break;
             }
             default:
                 return BadRequest("Ten typ pytania nie jest obsługiwany.");
         }
+
+        var isCorrect = AnswerEvaluator.Evaluate(block, answer.OptionIds?.ToList(), answer.TextAnswer);
 
         var savedAnswer = await _context.StudentAnswers
             .FirstOrDefaultAsync(saved => saved.UserId == userId && saved.LessonBlockId == blockId);
@@ -171,13 +173,7 @@ public class StudentController : ControllerBase
 
         if (block?.Lesson?.Course == null) return NotFound("Nie znaleziono pytania.");
 
-        var course = block.Lesson.Course;
-        var isAdmin = User.IsInRole("Admin");
-        var isOwner = course.MentorId == userId;
-        var isEnrolled = await _context.CourseEnrollments
-            .AnyAsync(enrollment => enrollment.CourseId == course.Id && enrollment.UserId == userId);
-
-        if ((!course.isPublished && !isOwner && !isAdmin) || (!isOwner && !isEnrolled && !isAdmin))
+        if (!await CanAccessCourseAsync(block.Lesson.Course, userId))
             return Forbid();
 
         var savedAnswer = await _context.StudentAnswers
@@ -191,11 +187,109 @@ public class StudentController : ControllerBase
         return NoContent();
     }
 
+    // podsumowanie kursu (ekran po kliknięciu "Zakończ kurs")
+    [HttpGet("course/{courseId}/summary")]
+    public async Task<IActionResult> GetCourseSummary(int courseId)
+    {
+        var userId = GetUserId();
+
+        var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == courseId);
+        if (course == null) return NotFound("Kurs nie istnieje.");
+
+        if (!await CanAccessCourseAsync(course, userId))
+            return Forbid();
+
+        var lessons = await _context.Lessons
+            .Where(lesson => lesson.CourseId == courseId)
+            .Select(lesson => lesson.OrderIndex)
+            .ToListAsync();
+
+        var questions = await _context.LessonBlocks
+            .Where(block => block.Lesson != null && block.Lesson.CourseId == courseId && block.QuestionText != null)
+            .Select(block => new
+            {
+                block.Id,
+                block.QuestionText,
+                block.OrderIndex,
+                LessonTitle = block.Lesson!.Title,
+                LessonOrderIndex = block.Lesson.OrderIndex
+            })
+            .ToListAsync();
+
+        var answers = await _context.StudentAnswers
+            .Where(answer => answer.UserId == userId && answer.LessonBlock!.Lesson!.CourseId == courseId)
+            .ToDictionaryAsync(answer => answer.LessonBlockId, answer => answer.IsCorrect);
+
+        var progress = await _context.UserProgresses
+            .FirstOrDefaultAsync(p => p.UserId == userId && p.CourseId == courseId);
+
+        var lastCompleted = progress?.LastCompletedLessonId ?? 0;
+        var lastLessonOrderIndex = lessons.Count == 0 ? 0 : lessons.Max();
+        var correctCount = questions.Count(question => answers.TryGetValue(question.Id, out var ok) && ok);
+
+        var questionsToReview = questions
+            .Where(question => !(answers.TryGetValue(question.Id, out var ok) && ok))
+            .OrderBy(question => question.LessonOrderIndex)
+            .ThenBy(question => question.OrderIndex)
+            .Select(question => new
+            {
+                BlockId = question.Id,
+                question.QuestionText,
+                question.LessonTitle,
+                question.LessonOrderIndex,
+                Status = answers.ContainsKey(question.Id) ? "wrong" : "unanswered"
+            })
+            .ToList();
+
+        return Ok(new
+        {
+            CourseId = course.Id,
+            CourseTitle = course.Title,
+            IsCompleted = lessons.Count > 0 && lastCompleted >= lastLessonOrderIndex,
+            TotalLessons = lessons.Count,
+            CompletedLessons = lessons.Count(orderIndex => orderIndex <= lastCompleted),
+            QuestionCount = questions.Count,
+            AnsweredCount = questions.Count(question => answers.ContainsKey(question.Id)),
+            CorrectCount = correctCount,
+            Score = correctCount * PointsPerCorrectAnswer,
+            MaxScore = questions.Count * PointsPerCorrectAnswer,
+            Percentage = questions.Count == 0 ? 100 : (int)Math.Round(correctCount * 100.0 / questions.Count),
+            CompletedAt = progress?.UpdatedAt,
+            QuestionsToReview = questionsToReview
+        });
+    }
+
     // zapis postępu studenta
+    // Wynik liczy serwer na podstawie zapisanych poprawnych odpowiedzi - pole Score z żądania jest ignorowane,
+    // więc nie da się "dopisać" sobie punktów ręcznie wysłanym requestem.
     [HttpPost("progress")]
     public async Task<IActionResult> SaveProgress([FromBody] SaveProgressDto dto)
     {
         var userId = GetUserId();
+
+        var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == dto.CourseId);
+        if (course == null) return NotFound("Nie znaleziono kursu.");
+
+        if (!await CanAccessCourseAsync(course, userId))
+            return Forbid();
+
+        var lessonOrderIndexes = await _context.Lessons
+            .Where(lesson => lesson.CourseId == dto.CourseId)
+            .Select(lesson => lesson.OrderIndex)
+            .ToListAsync();
+
+        var maxOrderIndex = lessonOrderIndexes.Count == 0
+            ? 0
+            : Math.Max(lessonOrderIndexes.Max(), lessonOrderIndexes.Count);
+
+        if (dto.CompletedLessonOrderIndex < 0 || dto.CompletedLessonOrderIndex > maxOrderIndex)
+            return BadRequest("Nieprawidłowy numer lekcji.");
+
+        var correctAnswers = await _context.StudentAnswers
+            .CountAsync(answer => answer.UserId == userId
+                && answer.IsCorrect
+                && answer.LessonBlock!.Lesson!.CourseId == dto.CourseId);
+
         var progress = await _context.UserProgresses
             .FirstOrDefaultAsync(p => p.UserId == userId && p.CourseId == dto.CourseId);
 
@@ -204,36 +298,58 @@ public class StudentController : ControllerBase
             progress = new UserProgress
             {
                 UserId = userId,
-                CourseId = dto.CourseId,
-                LastCompletedLessonId = dto.CompletedLessonOrderIndex,
-                Score = dto.Score
+                CourseId = dto.CourseId
             };
             _context.UserProgresses.Add(progress);
         }
-        else
-        {
-            if (dto.CompletedLessonOrderIndex > progress.LastCompletedLessonId)
-            {
-                progress.LastCompletedLessonId = dto.CompletedLessonOrderIndex;
-                progress.Score += dto.Score;
-            }
-            progress.UpdatedAt = DateTime.UtcNow;
-        }
+
+        progress.LastCompletedLessonId = Math.Max(progress.LastCompletedLessonId, dto.CompletedLessonOrderIndex);
+        progress.Score = correctAnswers * PointsPerCorrectAnswer;
+        progress.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
-        return Ok(progress);
+        return Ok(new
+        {
+            progress.CourseId,
+            progress.LastCompletedLessonId,
+            progress.Score,
+            progress.UpdatedAt
+        });
     }
 
-    // wysyłanie opini feedback co nie 
+    // wysyłanie opinii / zgłoszenia błędu
     [HttpPost("feedback")]
     public async Task<IActionResult> SendFeedback([FromBody] CreateFeedbackDto dto)
     {
+        var userId = GetUserId();
+        var message = dto.Message?.Trim() ?? string.Empty;
+
+        if (message.Length == 0)
+            return BadRequest("Wiadomość nie może być pusta.");
+        if (message.Length > MaxFeedbackLength)
+            return BadRequest($"Wiadomość może mieć maksymalnie {MaxFeedbackLength} znaków.");
+
+        var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == dto.CourseId);
+        if (course == null) return NotFound("Nie znaleziono kursu.");
+
+        if (!await CanAccessCourseAsync(course, userId))
+            return Forbid();
+
+        if (dto.LessonBlockId.HasValue)
+        {
+            var blockBelongsToCourse = await _context.LessonBlocks
+                .AnyAsync(block => block.Id == dto.LessonBlockId.Value && block.Lesson!.CourseId == dto.CourseId);
+
+            if (!blockBelongsToCourse)
+                return BadRequest("To zadanie nie należy do tego kursu.");
+        }
+
         var feedback = new Feedback
         {
-            UserId = GetUserId(),
+            UserId = userId,
             CourseId = dto.CourseId,
             LessonBlockId = dto.LessonBlockId,
-            Message = dto.Message,
+            Message = message,
             CreatedAt = DateTime.UtcNow
         };
 

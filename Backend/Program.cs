@@ -2,9 +2,11 @@ using Backend.Data;
 using Resend;
 using Backend.Service;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,41 +14,76 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-var jwtKey = builder.Configuration["Jwt:Key"];
-if (!string.IsNullOrEmpty(jwtKey))
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(connectionString))
 {
-    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-        .AddJwtBearer(options =>
-        {
-            options.TokenValidationParameters = new TokenValidationParameters
-            {
-                ValidateIssuer = false,
-                ValidateAudience = false,
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
-            };
-        });
+    throw new InvalidOperationException(
+        "Brak ConnectionStrings:DefaultConnection. Ustaw go przez dotnet user-secrets " +
+        "albo zmienną środowiskową ConnectionStrings__DefaultConnection (instrukcja w komendy.txt).");
 }
 
+builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+
+// --- JWT ---
+// Bez poprawnego klucza aplikacja nie wystartuje - lepiej to niż po cichu wyłączone logowanie.
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32 || jwtKey.StartsWith("TUTAJ_"))
+{
+    throw new InvalidOperationException(
+        "Brak klucza Jwt:Key (minimum 32 znaki). Ustaw go przez dotnet user-secrets " +
+        "albo zmienną środowiskową Jwt__Key (instrukcja w komendy.txt).");
+}
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        };
+    });
+
+// --- CORS ---
+var frontendUrl = (builder.Configuration["FrontendUrl"] ?? "http://localhost:5173").TrimEnd('/');
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowVue", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(frontendUrl)
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
 });
-builder.Services.AddHostedService<Backend.Service.ContainerHeartBeatCleanUpService>();
 
-// Resend
+// --- Limit żądań na endpointy logowania/rejestracji/resetu hasła (ochrona przed zgadywaniem haseł i spamem maili) ---
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
+
+// --- Wirtualne pulpity ---
+builder.Services.AddSingleton<DesktopSessionStore>();
+builder.Services.AddHostedService<ContainerHeartBeatCleanUpService>();
+
+// --- Resend ---
 builder.Services.AddResend(options =>
 {
-    options.ApiToken = builder.Configuration["Resend:ApiKey"]!;
+    options.ApiToken = builder.Configuration["Resend:ApiKey"] ?? string.Empty;
 });
 
 builder.Services.AddScoped<IEmailService, ResendEmailService>();
@@ -61,10 +98,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 app.UseCors("AllowVue");
-app.UseCors("AllowFrontend");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-
 
 app.Run();

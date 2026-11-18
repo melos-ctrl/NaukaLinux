@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using Backend.Data;
 using Backend.DTOs;
-using Backend.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,11 +10,12 @@ namespace Backend.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = "Admin")]
-
 public class AdminController : ControllerBase
 {
+    private static readonly string[] AllowedRoles = ["User", "Mentor", "Admin"];
+
     private readonly AppDbContext _context;
-    
+
     public AdminController(AppDbContext context)
     {
         _context = context;
@@ -23,27 +23,39 @@ public class AdminController : ControllerBase
 
     private int GetAdminId() => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-    //zarządzanie użytkownikami 
-    //Wyświetlanie
+    // --- zarządzanie użytkownikami ---
+
     [HttpGet("users")]
     public async Task<IActionResult> GetUsers() =>
-    Ok(await _context.Users.Select(u => new {u.Id, u.Email, u.Role}).ToListAsync());
+        Ok(await _context.Users
+            .OrderBy(u => u.Id)
+            .Select(u => new { u.Id, u.Username, u.Email, u.Role })
+            .ToListAsync());
 
-    //zmiana roli
     [HttpPut("users/{id}/role")]
-    public async Task<IActionResult> ChangeRole(int id, [FromBody] string NewRole)
+    public async Task<IActionResult> ChangeRole(int id, [FromBody] string newRole)
     {
+        var role = AllowedRoles.FirstOrDefault(r => r.Equals(newRole?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (role == null)
+            return BadRequest($"Nieznana rola. Dozwolone: {string.Join(", ", AllowedRoles)}.");
+
+        if (id == GetAdminId() && role != "Admin")
+            return Conflict("Nie możesz odebrać uprawnień administratora samemu sobie.");
+
         var user = await _context.Users.FindAsync(id);
         if (user == null) return NotFound();
 
-        user.Role = NewRole;
+        user.Role = role;
         await _context.SaveChangesAsync();
-        return Ok();
+        return Ok(new { user.Id, user.Role });
     }
-    //usuwanie użytkownika
+
     [HttpDelete("users/{id}")]
     public async Task<IActionResult> DeleteUser(int id)
     {
+        if (id == GetAdminId())
+            return Conflict("Nie możesz usunąć własnego konta z panelu administratora.");
+
         var user = await _context.Users.FindAsync(id);
         if (user == null) return NotFound();
 
@@ -51,74 +63,28 @@ public class AdminController : ControllerBase
         await _context.SaveChangesAsync();
         return Ok();
     }
-    // kurst i zadania AED
+
+    // --- kursy ---
+    // Tworzenie i edycja kursów idzie przez CoursesController (POST /api/courses/save), który obsługuje też rolę Admin.
+
     [HttpGet("courses")]
     public async Task<IActionResult> GetCourses()
     {
         var courses = await _context.Courses
-            .Include(c => c.Lessons.OrderBy(l => l.OrderIndex))
-                .ThenInclude(l => l.Blocks.OrderBy(b => b.OrderIndex))
-                    .ThenInclude(b => b.Options)
+            .OrderBy(c => c.Id)
+            .Select(c => new
+            {
+                c.Id,
+                c.Title,
+                c.Description,
+                c.MentorId,
+                MentorName = c.Mentor != null ? c.Mentor.Username : "Nieznany autor",
+                IsPublished = c.isPublished,
+                LessonCount = c.Lessons.Count
+            })
             .ToListAsync();
 
         return Ok(courses);
-    }
-
-    [HttpPost("courses")]
-    public async Task<IActionResult> SaveCourse([FromBody] CreateCourseDto dto)
-    {
-        Course? course;
-
-        if(dto.Id.HasValue && dto.Id.Value > 0)
-        {
-            course = await _context.Courses
-                .Include(c => c.Lessons)
-                .FirstOrDefaultAsync(c => c.Id == dto.Id.Value);
-
-            if (course == null) return NotFound("Nie znaleziono kursu.");
-
-            course.Title = dto.Title;
-            course.Description = dto.Description;
-            course.isPublished = dto.IsPublished;
-
-            _context.Lessons.RemoveRange(course.Lessons);
-
-        } else
-        {
-            course = new Course
-            {
-                Title = dto.Title,
-                Description = dto.Description,
-                isPublished = dto.IsPublished,
-                MentorId = GetAdminId()
-            };
-            _context.Courses.Add(course); 
-        }
-        course.Lessons = dto.Lessons.Select(l => new Lesson
-        {
-            Title = l.Title,
-            OrderIndex = l.OrderIndex,
-            Blocks = l.Blocks.Select(b => new LessonBlock
-            {
-                Type = b.Type,
-                OrderIndex = b.OrderIndex,
-                TextContent = b.TextContent,
-                QuestionText = b.QuestionText,
-                QuestionType = b.QuestionType,
-                FrontText = b.FrontText,
-                BackText = b.BackText,
-                VideoUrl = b.VideoUrl,
-                Hint = b.Hint,
-                Options = b.Options?.Select(o => new QuizOption
-                {
-                    OptionText = o.OptionText,
-                    IsCorrect = o.IsCorrect
-                }).ToList() ?? new()
-            }).ToList()
-        }).ToList();
-
-        await _context.SaveChangesAsync();
-        return Ok(course);
     }
 
     [HttpDelete("courses/{id}")]
@@ -131,7 +97,8 @@ public class AdminController : ControllerBase
         await _context.SaveChangesAsync();
         return Ok();
     }
-    // wyniki
+
+    // --- wyniki ---
     [HttpGet("results")]
     public async Task<IActionResult> GetResults()
     {
@@ -161,7 +128,8 @@ public class AdminController : ControllerBase
 
         return Ok(results);
     }
-    //zgłoszone błedy i opinie
+
+    // --- zgłoszone błędy i opinie ---
     [HttpGet("feedbacks")]
     public async Task<IActionResult> GetFeedbacks()
     {
@@ -230,6 +198,4 @@ public class AdminController : ControllerBase
 
         return Ok(new { application.Id, application.Status, UserRole = application.User.Role });
     }
-
-
 }

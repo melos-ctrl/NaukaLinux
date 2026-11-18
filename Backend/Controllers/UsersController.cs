@@ -1,11 +1,10 @@
 using System.Security.Claims;
 using Backend.Data;
+using Backend.Service;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.Processing;
+using SkiaSharp;
 using Backend.DTOs;
 
 namespace Backend.Controllers;
@@ -16,6 +15,12 @@ namespace Backend.Controllers;
 public class UsersController : ControllerBase
 {
     private const long MaxAvatarBytes = 5 * 1024 * 1024;
+    private const int AvatarSize = 512;
+    private const int AvatarQuality = 82;
+
+    // Limit pikseli przed dekodowaniem: mały plik (np. 100 KB) może opisywać obraz 50000x50000,
+    // który po rozkodowaniu zająłby gigabajty RAM ("image bomb"). 40 Mpx to ok. 6300x6300.
+    private const long MaxAvatarPixels = 40_000_000;
 
     private readonly AppDbContext _context;
     private readonly IWebHostEnvironment _environment;
@@ -62,7 +67,8 @@ public class UsersController : ControllerBase
             return Unauthorized();
 
         var username = request.Username.Trim();
-        var email = request.Email.Trim();
+        // Taki sam format jak przy rejestracji - inaczej logowanie/reset hasła nie znajdą konta
+        var email = TokenHelper.NormalizeEmail(request.Email);
 
         if (username.Length < 3 || string.IsNullOrWhiteSpace(email))
             return BadRequest("Podaj prawidłową nazwę użytkownika i adres e-mail.");
@@ -81,7 +87,7 @@ public class UsersController : ControllerBase
             return Conflict("Ta nazwa użytkownika jest już zajęta.");
 
         var duplicateEmail = await _context.Users.AnyAsync(
-            u => u.Id != userId && u.Email.ToLower() == email.ToLower(),
+            u => u.Id != userId && u.Email.ToLower() == email,
             cancellationToken);
 
         if (duplicateEmail)
@@ -101,6 +107,9 @@ public class UsersController : ControllerBase
         [FromForm] IFormFile? file,
         CancellationToken cancellationToken)
     {
+        const string invalidImageMessage =
+            "Nieobsługiwany lub uszkodzony plik. Wgraj obraz JPG, PNG, GIF lub WebP.";
+
         if (!TryGetCurrentUserId(out var userId))
             return Unauthorized();
 
@@ -116,6 +125,60 @@ public class UsersController : ControllerBase
         if (user is null)
             return NotFound();
 
+        byte[] uploadedBytes;
+        await using (var buffer = new MemoryStream())
+        {
+            await file.CopyToAsync(buffer, cancellationToken);
+            uploadedBytes = buffer.ToArray();
+        }
+
+        // SKCodec czyta tylko nagłówek - wymiary znamy, zanim cokolwiek zostanie rozkodowane
+        using var data = SKData.CreateCopy(uploadedBytes);
+        using var codec = SKCodec.Create(data);
+        if (codec is null)
+            return BadRequest(invalidImageMessage);
+
+        if ((long)codec.Info.Width * codec.Info.Height > MaxAvatarPixels)
+            return BadRequest("Obraz ma za duże wymiary. Maksymalnie ok. 6000×6000 pikseli.");
+
+        using var original = SKBitmap.Decode(codec);
+        if (original is null)
+            return BadRequest(invalidImageMessage);
+
+        // Przycięcie do kwadratu ze środka obrazu i przeskalowanie do 512x512
+        var side = Math.Min(original.Width, original.Height);
+        var sourceRect = SKRect.Create(
+            (original.Width - side) / 2f,
+            (original.Height - side) / 2f,
+            side,
+            side);
+        var targetRect = SKRect.Create(0, 0, AvatarSize, AvatarSize);
+
+        using var surface = SKSurface.Create(new SKImageInfo(AvatarSize, AvatarSize));
+        if (surface is null)
+        {
+            _logger.LogError("Nie udało się utworzyć powierzchni SkiaSharp dla avatara.");
+            return StatusCode(500, "Nie udało się przetworzyć obrazu.");
+        }
+
+        using (var sourceImage = SKImage.FromBitmap(original))
+        {
+            surface.Canvas.Clear(SKColors.Transparent);
+            surface.Canvas.DrawImage(
+                sourceImage,
+                sourceRect,
+                targetRect,
+                new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
+        }
+
+        using var avatar = surface.Snapshot();
+        using var encoded = avatar.Encode(SKEncodedImageFormat.Webp, AvatarQuality);
+        if (encoded is null)
+        {
+            _logger.LogError("SkiaSharp nie zakodował avatara do WebP.");
+            return StatusCode(500, "Nie udało się przetworzyć obrazu.");
+        }
+
         var webRoot = _environment.WebRootPath
             ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
 
@@ -125,19 +188,10 @@ public class UsersController : ControllerBase
         var fileName = $"{Guid.NewGuid():N}.webp";
         var filePath = Path.Combine(avatarsDirectory, fileName);
 
-        using var image = await Image.LoadAsync(file.OpenReadStream(), cancellationToken);
-
-        image.Mutate(operation => operation.Resize(new ResizeOptions
+        await using (var output = System.IO.File.Create(filePath))
         {
-            Size = new Size(512, 512),
-            Mode = ResizeMode.Crop,
-            Position = AnchorPositionMode.Center
-        }));
-
-        await image.SaveAsWebpAsync(
-            filePath,
-            new WebpEncoder { Quality = 82 },
-            cancellationToken);
+            await output.WriteAsync(encoded.ToArray(), cancellationToken);
+        }
 
         var previousAvatarUrl = user.AvatarUrl;
         user.AvatarUrl = $"/avatars/{fileName}";
@@ -207,6 +261,7 @@ public class UsersController : ControllerBase
 
         return Ok(courses);
     }
+
     [HttpPost("me/password")]
     public async Task<IActionResult> ChangePassword(
         [FromBody] ChangePasswordDto changePasswordDto,

@@ -48,6 +48,29 @@ interface ModuleData {
   lessons: LessonData[];
 }
 
+interface SummaryQuestion {
+  blockId: number;
+  questionText: string;
+  lessonTitle: string;
+  lessonOrderIndex: number;
+  status: 'wrong' | 'unanswered';
+}
+
+interface CourseSummary {
+  courseTitle: string;
+  isCompleted: boolean;
+  totalLessons: number;
+  completedLessons: number;
+  questionCount: number;
+  answeredCount: number;
+  correctCount: number;
+  score: number;
+  maxScore: number;
+  percentage: number;
+  completedAt?: string | null;
+  questionsToReview: SummaryQuestion[];
+}
+
 interface Task {
   id: number;
   orderIndex: number;
@@ -73,14 +96,21 @@ const answerErrors = ref<Record<number, string | undefined>>({});
 const selectedOptions = ref<Record<number, number[] | undefined>>({});
 const textAnswers = ref<Record<number, string | undefined>>({});
 
+// Podsumowanie kursu (ekran po kliknięciu "Zakończ kurs")
+const summary = ref<CourseSummary | null>(null);
+const isSummaryOpen = ref(false);
+const isSummaryLoading = ref(false);
+const summaryError = ref('');
+
 // Modal do zgłaszania błędów w zadaniach i wysyłania opinii
 const isFeedbackModalOpen = ref(false);
 const feedbackBlockId = ref<number | null>(null);
 const feedbackMessage = ref('');
 const feedbackSuccess = ref('');
+const feedbackError = ref('');
 
 const currentTask = computed(() => tasks.value[currentStepIndex.value]);
-const progressPercentage = computed(() => 
+const progressPercentage = computed(() =>
   tasks.value.length > 0 ? ((currentStepIndex.value + 1) / tasks.value.length) * 100 : 0
 );
 
@@ -91,7 +121,7 @@ const getConfig = () => {
 
 const fetchCourseContent = async () => {
   const courseId = route.params.id;
-  
+
   if (!courseId) {
     errorMessage.value = "Brak ID kursu.";
     isLoading.value = false;
@@ -128,7 +158,7 @@ const fetchCourseContent = async () => {
       });
 
     tasks.value = parsedTasks;
-    
+
     if (tasks.value.length === 0) {
       errorMessage.value = "Ten kurs nie ma jeszcze żadnych lekcji.";
       return;
@@ -153,7 +183,9 @@ const fetchCourseContent = async () => {
         if (nextIdx !== -1) {
           currentStepIndex.value = nextIdx;
         } else {
+          // Wszystkie lekcje ukończone - zamiast zaczynać od nowa pokazujemy podsumowanie
           currentStepIndex.value = 0;
+          await openSummary();
         }
       }
     } catch {
@@ -172,59 +204,94 @@ const toggleHint = (blockIndex: number) => {
   visibleHints.value[blockIndex] = !visibleHints.value[blockIndex];
 };
 
-// Obliczanie punktów zdobytych w bieżącej lekcji i zapis do bazy
+// Zapis ukończonej lekcji. Punkty liczy backend na podstawie zapisanych odpowiedzi.
 const saveCurrentStepProgress = async () => {
   const courseId = Number(route.params.id);
   if (!courseId || !currentTask.value) return;
 
-  let earnedPoints = 0;
-  currentTask.value.blocks.forEach(block => {
-    if (block.id !== undefined && answeredQuestions.value[block.id]?.isCorrect) {
-      earnedPoints += 10;
-    }
-  });
-
   try {
     await axios.post('/api/student/progress', {
       courseId: courseId,
-      completedLessonOrderIndex: currentTask.value.orderIndex,
-      score: earnedPoints
+      completedLessonOrderIndex: currentTask.value.orderIndex
     }, getConfig());
   } catch (err) {
     console.error("Błąd zapisu postępu:", err);
   }
 };
 
+const scrollLessonToTop = () => {
+  const lessonContainer = document.getElementById('lesson-scroll-container');
+  if (lessonContainer) lessonContainer.scrollTop = 0;
+};
+
+const goToLesson = (index: number) => {
+  currentStepIndex.value = index;
+  // Podpowiedzi są zapamiętane po numerze bloku w lekcji, więc przy zmianie lekcji je chowamy.
+  // Odpowiedzi zostają - są zapisane po ID pytania i mają się wyświetlać po powrocie do lekcji.
+  visibleHints.value = {};
+  scrollLessonToTop();
+};
+
+const fetchSummary = async () => {
+  isSummaryLoading.value = true;
+  summaryError.value = '';
+  try {
+    const response = await axios.get(`/api/student/course/${route.params.id}/summary`, getConfig());
+    summary.value = response.data as CourseSummary;
+  } catch (error) {
+    console.error('Błąd pobierania podsumowania:', error);
+    summaryError.value = 'Nie udało się pobrać podsumowania kursu.';
+  } finally {
+    isSummaryLoading.value = false;
+  }
+};
+
+async function openSummary() {
+  isSummaryOpen.value = true;
+  await fetchSummary();
+}
+
 const nextStep = async () => {
   await saveCurrentStepProgress();
 
-  answeredQuestions.value = {};
-  checkingAnswers.value = {};
-  answerErrors.value = {};
-  selectedOptions.value = {};
-  textAnswers.value = {};
-  visibleHints.value = {};
-
   if (currentStepIndex.value < tasks.value.length - 1) {
-    currentStepIndex.value++;
-    
-    const lessonContainer = document.getElementById('lesson-scroll-container');
-    if (lessonContainer) lessonContainer.scrollTop = 0;
+    goToLesson(currentStepIndex.value + 1);
   } else {
-    alert('Gratulacje! Ukończyłeś cały kurs!');
-    router.push('/courses');
+    await openSummary();
   }
 };
+
+// Z podsumowania: przejście do lekcji z pytaniem do poprawy
+const reviewQuestion = (question: SummaryQuestion) => {
+  const index = tasks.value.findIndex(task => task.orderIndex === question.lessonOrderIndex);
+  isSummaryOpen.value = false;
+  goToLesson(index !== -1 ? index : 0);
+};
+
+const reviewCourseFromStart = () => {
+  isSummaryOpen.value = false;
+  goToLesson(0);
+};
+
+const summaryHeadline = computed(() => {
+  const percent = summary.value?.percentage ?? 0;
+  if (percent === 100) return 'Perfekcyjnie! Wszystkie odpowiedzi poprawne.';
+  if (percent >= 80) return 'Świetna robota!';
+  if (percent >= 50) return 'Dobrze Ci idzie - popraw kilka pytań i będzie komplet.';
+  return 'Warto wrócić do kilku zagadnień.';
+});
 
 const openFeedbackModal = (blockId: number | null = null) => {
   feedbackBlockId.value = blockId;
   feedbackMessage.value = '';
   feedbackSuccess.value = '';
+  feedbackError.value = '';
   isFeedbackModalOpen.value = true;
 };
 
 const submitFeedback = async () => {
   if (!feedbackMessage.value.trim()) return;
+  feedbackError.value = '';
   try {
     await axios.post('/api/student/feedback', {
       courseId: Number(route.params.id),
@@ -238,6 +305,9 @@ const submitFeedback = async () => {
     }, 1500);
   } catch (err) {
     console.error("Błąd wysyłania zgłoszenia:", err);
+    feedbackError.value = axios.isAxiosError(err) && typeof err.response?.data === 'string'
+      ? err.response.data
+      : 'Nie udało się wysłać zgłoszenia.';
   }
 };
 
@@ -249,14 +319,29 @@ const copyCommand = async (text: string) => {
   }
 };
 
-const getEmbedUrl = (url: string) => {
+// Do iframe trafia wyłącznie adres embed YouTube. Każdy inny link (w tym "javascript:...") jest odrzucany.
+const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
+const getEmbedUrl = (url?: string): string => {
   if (!url) return '';
-  if (url.includes('/embed/')) return url;
-  const videoIdMatch = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11}).*/);
-  if (videoIdMatch && videoIdMatch[1]) {
-    return `https://www.youtube.com/embed/${videoIdMatch[1]}`;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return '';
+
+    const host = parsed.hostname.toLowerCase().replace(/^(www|m)\./, '');
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    let videoId: string | null = null;
+
+    if (host === 'youtu.be') {
+      videoId = parts[0] ?? null;
+    } else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+      if (parts[0] === 'watch') videoId = parsed.searchParams.get('v');
+      else if (['embed', 'shorts', 'live', 'v'].includes(parts[0] ?? '')) videoId = parts[1] ?? null;
+    }
+
+    return videoId && YOUTUBE_ID.test(videoId) ? `https://www.youtube.com/embed/${videoId}` : '';
+  } catch {
+    return '';
   }
-  return url; 
 };
 
 const toggleAnswerOption = (blockId: number, optionId: number, questionType?: QuestionType) => {
@@ -315,14 +400,14 @@ onMounted(() => {
 <template>
   <div class="flex h-screen w-full bg-floral-white overflow-hidden relative">
 
-    <div 
+    <div
       :class="[
         isVncOpen ? 'w-1/3 min-w-[350px] max-w-[500px]' : 'flex-1',
         'bg-charcoal-brown text-white flex flex-col z-10 transition-all duration-500 ease-in-out h-full overflow-hidden'
       ]"
     >
       <div class="w-full h-full mx-auto flex flex-col" :class="!isVncOpen ? 'max-w-4xl' : ''">
-        
+
         <div v-if="isLoading" class="flex-1 flex justify-center items-center">
           <span class="animate-pulse text-floral-white">Ładowanie kursu</span>
         </div>
@@ -334,8 +419,118 @@ onMounted(() => {
           </button>
         </div>
 
+        <!-- PODSUMOWANIE KURSU -->
+        <div v-else-if="isSummaryOpen" class="flex-1 overflow-y-auto p-6 md:p-10">
+          <div v-if="isSummaryLoading" class="flex h-full items-center justify-center">
+            <span class="animate-pulse text-floral-white">Liczenie wyników...</span>
+          </div>
+
+          <div v-else-if="summaryError" class="flex h-full flex-col items-center justify-center gap-4 text-center">
+            <p class="text-spicy-paprika">{{ summaryError }}</p>
+            <button @click="fetchSummary" class="rounded-lg bg-floral-white px-4 py-2 text-charcoal-brown hover:bg-spicy-paprika hover:text-floral-white">
+              Spróbuj ponownie
+            </button>
+          </div>
+
+          <div v-else-if="summary" class="mx-auto flex max-w-2xl flex-col gap-6">
+            <header class="text-center">
+              <p class="text-xs font-bold uppercase tracking-wider text-spicy-paprika">{{ summary.courseTitle }}</p>
+              <h2 class="mt-2 text-3xl font-extrabold text-floral-white">
+                {{ summary.isCompleted ? 'Kurs ukończony!':'Podsumowanie kursu' }}
+              </h2>
+              <p v-if="summary.questionCount > 0" class="mt-2 text-silver">{{ summaryHeadline }}</p>
+            </header>
+
+            <!-- Wynik -->
+            <section v-if="summary.questionCount > 0" class="rounded-2xl border border-silver/30 bg-floral-white/5 p-6 text-center">
+              <p class="text-5xl font-extrabold text-floral-white">
+                {{ summary.score }}<span class="text-2xl text-silver"> / {{ summary.maxScore }} pkt</span>
+              </p>
+              <div
+                class="mx-auto mt-4 h-3 max-w-md overflow-hidden rounded-full bg-floral-white/20"
+                role="progressbar"
+                :aria-valuenow="summary.percentage"
+                aria-valuemin="0"
+                aria-valuemax="100"
+              >
+                <div
+                  class="h-full rounded-full transition-all duration-700"
+                  :class="summary.percentage >= 80 ? 'bg-green-500' : 'bg-spicy-paprika'"
+                  :style="{ width: summary.percentage + '%' }"
+                ></div>
+              </div>
+              <p class="mt-2 text-sm font-semibold text-silver">{{ summary.percentage }}% poprawnych odpowiedzi</p>
+            </section>
+
+            <!-- Liczby -->
+            <section class="grid grid-cols-3 gap-3 text-center">
+              <div class="rounded-xl border border-silver/30 p-4">
+                <p class="text-2xl font-bold text-floral-white">{{ summary.completedLessons }}/{{ summary.totalLessons }}</p>
+                <p class="mt-1 text-xs uppercase tracking-wider text-silver">Lekcje</p>
+              </div>
+              <div class="rounded-xl border border-silver/30 p-4">
+                <p class="text-2xl font-bold text-green-400">{{ summary.correctCount }}/{{ summary.questionCount }}</p>
+                <p class="mt-1 text-xs uppercase tracking-wider text-silver">Poprawne</p>
+              </div>
+              <div class="rounded-xl border border-silver/30 p-4">
+                <p class="text-2xl font-bold" :class="summary.questionsToReview.length ? 'text-spicy-paprika' : 'text-floral-white'">
+                  {{ summary.questionsToReview.length }}
+                </p>
+                <p class="mt-1 text-xs uppercase tracking-wider text-silver">Do poprawy</p>
+              </div>
+            </section>
+
+            <!-- Pytania do poprawy -->
+            <section v-if="summary.questionsToReview.length" class="flex flex-col gap-2">
+              <h3 class="text-sm font-bold uppercase tracking-wider text-silver">Wróć do tych pytań</h3>
+              <button
+                v-for="question in summary.questionsToReview"
+                :key="question.blockId"
+                @click="reviewQuestion(question)"
+                class="flex items-start justify-between gap-3 rounded-xl border border-silver/30 p-4 text-left transition-colors hover:border-spicy-paprika hover:bg-floral-white/5"
+              >
+                <span>
+                  <span class="block text-xs font-semibold text-silver">{{ question.lessonTitle }}</span>
+                  <span class="mt-1 block font-medium text-floral-white">{{ question.questionText }}</span>
+                </span>
+                <span
+                  class="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold"
+                  :class="question.status === 'wrong' ? 'bg-red-500/20 text-red-300' : 'bg-silver/20 text-silver'"
+                >
+                  {{ question.status === 'wrong' ? 'Błędna' : 'Bez odpowiedzi' }}
+                </span>
+              </button>
+            </section>
+            <p v-else-if="summary.questionCount > 0" class="rounded-xl border border-green-500/40 bg-green-500/10 p-4 text-center text-sm font-semibold text-green-300">
+              Wszystkie pytania rozwiązane poprawnie. Brawo!
+            </p>
+
+            <!-- Akcje -->
+            <section class="flex flex-col gap-3 sm:flex-row">
+              <button
+                @click="openFeedbackModal(null)"
+                class="flex-1 rounded-lg border border-silver/40 px-4 py-3 font-semibold text-floral-white hover:border-spicy-paprika"
+              >
+                ★ Oceń kurs
+              </button>
+              <button
+                @click="reviewCourseFromStart"
+                class="flex-1 rounded-lg border border-silver/40 px-4 py-3 font-semibold text-floral-white hover:border-spicy-paprika"
+              >
+                Przejrzyj kurs od początku
+              </button>
+              <button
+                @click="router.push('/courses')"
+                class="flex-1 rounded-lg bg-floral-white px-4 py-3 font-semibold text-charcoal-brown hover:bg-spicy-paprika hover:text-floral-white"
+              >
+                Wróć do katalogu
+              </button>
+            </section>
+          </div>
+        </div>
+
         <template v-else-if="currentTask">
-          
+
           <div class="p-6 border-b border-silver flex flex-col gap-4">
             <div class="flex justify-between items-start gap-2">
               <div>
@@ -345,14 +540,22 @@ onMounted(() => {
                 <div v-if="currentTask.moduleTitle" class="text-xs text-silver font-semibold uppercase">{{ currentTask.moduleTitle }}</div>
                 <h2 class="text-xl font-bold text-floral-white line-clamp-2">Lekcja {{ currentStepIndex + 1 }}: {{ currentTask.lessonTitle }}</h2>
               </div>
-              <button 
-                @click="openFeedbackModal(null)"
-                class="shrink-0 text-xs px-3 py-1.5 rounded-lg border border-silver/40 text-silver hover:border-spicy-paprika hover:text-floral-white transition-colors"
-              >
-                ★ Oceń / Wyślij opinię
-              </button>
+              <div class="flex shrink-0 flex-col gap-2">
+                <button
+                  @click="openFeedbackModal(null)"
+                  class="text-xs px-3 py-1.5 rounded-lg border border-silver/40 text-silver hover:border-spicy-paprika hover:text-floral-white transition-colors"
+                >
+                  ★ Oceń / Wyślij opinię
+                </button>
+                <button
+                  @click="openSummary"
+                  class="text-xs px-3 py-1.5 rounded-lg border border-silver/40 text-silver hover:border-spicy-paprika hover:text-floral-white transition-colors"
+                >
+                  Podsumowanie
+                </button>
+              </div>
             </div>
-            
+
             <div>
               <div class="flex justify-between text-xs font-bold text-floral-white uppercase tracking-wider mb-2">
                 <span>Postęp kursu</span>
@@ -365,15 +568,15 @@ onMounted(() => {
           </div>
 
           <div id="lesson-scroll-container" class="flex-1 p-6 overflow-y-auto flex flex-col gap-8">
-            
+
             <div v-for="(block, index) in currentTask.blocks" :key="index" class="flex flex-col gap-2">
-              
-              <div v-if="block.videoUrl" class="w-full aspect-video bg-black rounded-lg overflow-hidden shadow-md border border-silver/30 mb-2">
-                <iframe 
-                  :src="getEmbedUrl(block.videoUrl)" 
-                  class="w-full h-full" 
-                  frameborder="0" 
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+
+              <div v-if="getEmbedUrl(block.videoUrl)" class="w-full aspect-video bg-black rounded-lg overflow-hidden shadow-md border border-silver/30 mb-2">
+                <iframe
+                  :src="getEmbedUrl(block.videoUrl)"
+                  class="w-full h-full"
+                  frameborder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowfullscreen>
                 </iframe>
               </div>
@@ -384,7 +587,7 @@ onMounted(() => {
 
               <div v-if="block.frontText" class="mt-4">
                 <label class="block text-xs font-bold text-silver uppercase tracking-wider mb-2">Polecenie do wpisania w terminalu:</label>
-                <div 
+                <div
                   @click="copyCommand(block.frontText)"
                   class="group relative p-4 bg-slate-950 rounded-lg border border-silver/50 font-mono text-sm text-green-400 w-full cursor-pointer hover:border-spicy-paprika transition-colors shadow-inner"
                 >
@@ -399,15 +602,16 @@ onMounted(() => {
                 <div class="flex justify-between items-start gap-4 mb-4">
                   <h3 class="text-lg font-bold text-floral-white">{{ block.questionText }}</h3>
                   <div class="flex gap-2 shrink-0">
-                    <button 
+                    <button
                       v-if="block.hint"
                       @click="toggleHint(index)"
                       class="text-xs px-2.5 py-1 rounded bg-sky-blue/20 text-sky-blue hover:bg-sky-blue/30 font-semibold transition-colors"
                     >
                       {{ visibleHints[index] ? 'Ukryj podpowiedź' : '? Podpowiedź' }}
                     </button>
-                    <button 
-                      @click="openFeedbackModal(block.id || index + 1)"
+                    <button
+                      v-if="block.id !== undefined"
+                      @click="openFeedbackModal(block.id)"
                       class="text-xs px-2.5 py-1 rounded bg-spicy-paprika/20 text-spicy-paprika hover:bg-spicy-paprika hover:text-white font-semibold transition-colors"
                       title="Zgłoś błąd w tym zadaniu"
                     >
@@ -420,7 +624,7 @@ onMounted(() => {
                 <div v-if="visibleHints[index] && block.hint" class="mb-4 p-3 rounded-lg bg-sky-blue/10 border border-sky-blue/30 text-sm text-floral-white">
                   <strong class="text-sky-blue">Podpowiedź:</strong> {{ block.hint }}
                 </div>
-                
+
                 <div v-if="block.questionType === 'TextAnswer'" class="flex flex-col gap-3">
                   <input
                     v-if="block.id !== undefined"
@@ -452,8 +656,8 @@ onMounted(() => {
                 </div>
 
                 <div v-else-if="block.options && block.options.length > 0" class="flex flex-col gap-3">
-                  <button 
-                    v-for="(option, idx) in block.options" 
+                  <button
+                    v-for="(option, idx) in block.options"
                     :key="idx"
                     @click="block.id !== undefined && toggleAnswerOption(block.id, option.id, block.questionType)"
                     :disabled="block.id === undefined || !!answeredQuestions[block.id] || !!checkingAnswers[block.id]"
@@ -505,7 +709,7 @@ onMounted(() => {
           </div>
 
           <div class="p-6 border-t border-silver bg-charcoal-brown shrink-0">
-            <button 
+            <button
               @click="nextStep"
               class="w-full px-6 py-3 bg-floral-white hover:bg-spicy-paprika text-charcoal-brown hover:text-floral-white font-semibold rounded-lg shadow-md transition-colors flex justify-center items-center gap-2"
             >
@@ -516,13 +720,13 @@ onMounted(() => {
       </div>
     </div>
 
-    <div 
+    <div
       :class="[
         isVncOpen ? 'flex-1 border-l border-silver' : 'w-0 border-l-0',
         'relative bg-floral-white flex flex-col items-center justify-center transition-all duration-500 ease-in-out'
       ]"
     >
-      <button 
+      <button
         @click="isVncOpen = !isVncOpen"
         class="absolute top-1/2 -translate-y-1/2 -left-8 w-8 h-20 bg-floral-white hover:bg-spicy-paprika text-charcoal-brown hover:text-floral-white rounded-l-xl shadow-lg flex items-center justify-center z-50 transition-colors cursor-pointer border border-r-0 border-silver/50"
       >
@@ -548,23 +752,25 @@ onMounted(() => {
           {{ feedbackBlockId ? 'Opisz, co nie działa lub jest niejasne w tym pytaniu.' : 'Podziel się swoją opinią na temat materiałów w tym kursie.' }}
         </p>
 
-        <textarea 
+        <textarea
           v-model="feedbackMessage"
           rows="4"
+          maxlength="2000"
           placeholder="Twoja wiadomość..."
           class="w-full rounded-lg border border-silver/50 bg-carbon-black p-3 text-floral-white placeholder:text-silver/50 focus:outline-none focus:ring-2 focus:ring-spicy-paprika mb-4"
         ></textarea>
 
         <p v-if="feedbackSuccess" class="text-green-400 text-sm font-bold mb-4">{{ feedbackSuccess }}</p>
+        <p v-if="feedbackError" class="text-red-400 text-sm font-bold mb-4">{{ feedbackError }}</p>
 
         <div class="flex justify-end gap-3">
-          <button 
+          <button
             @click="isFeedbackModalOpen = false"
             class="px-4 py-2 rounded-lg border border-silver/40 text-silver hover:text-white"
           >
             Anuluj
           </button>
-          <button 
+          <button
             @click="submitFeedback"
             class="px-5 py-2 rounded-lg bg-spicy-paprika text-white font-semibold hover:opacity-90"
           >

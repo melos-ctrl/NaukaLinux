@@ -24,6 +24,7 @@ const mentorApplications = ref<any[]>([])
 const mentorApplicationsError = ref('')
 const reviewingApplicationId = ref<number | null>(null)
 const reviewError = ref('')
+const usersError = ref('')
 
 // pobieranie danych
 const fetchAll = async () => {
@@ -66,17 +67,26 @@ const deleteCourse = async (id: number) => {
 // --- AKCJE UŻYTKOWNIKÓW ---
 const deleteUser = async (id: number) => {
   if (!confirm('Usunąć użytkownika?')) return
-  await fetch(`${API_URL}/users/${id}`, { method: 'DELETE', headers: getHeaders() })
+  usersError.value = ''
+  const response = await fetch(`${API_URL}/users/${id}`, { method: 'DELETE', headers: getHeaders() })
+  if (!response.ok) {
+    usersError.value = (await response.text()) || 'Nie udało się usunąć użytkownika.'
+  }
   await fetchAll()
 }
 
 const changeRole = async (user: any, event: Event) => {
   const newRole = (event.target as HTMLSelectElement).value
-  await fetch(`${API_URL}/users/${user.id}/role`, {
+  usersError.value = ''
+  const response = await fetch(`${API_URL}/users/${user.id}/role`, {
     method: 'PUT',
     headers: getHeaders(),
     body: JSON.stringify(newRole)
   })
+  if (!response.ok) {
+    usersError.value = (await response.text()) || 'Nie udało się zmienić roli.'
+  }
+  // odświeżamy zawsze - przy błędzie select wróci do aktualnej roli
   await fetchAll()
 }
 
@@ -209,7 +219,7 @@ onMounted(fetchAll)
             </span>
             <h3 class="text-lg font-bold text-charcoal-brown">{{ course.title }}</h3>
             <p class="mt-2 flex-1 text-sm leading-relaxed text-charcoal-brown/70">{{ course.description }}</p>
-            <span class="mt-4 text-xs font-medium text-sage">Lekcji w kursie: {{ course.lessons?.length || 0 }}</span>
+            <span class="mt-4 text-xs font-medium text-sage">Lekcji w kursie: {{ course.lessonCount ?? 0 }}</span>
             <div class="mt-4 flex flex-wrap gap-2">
               <button type="button" class="rounded-lg bg-charcoal-brown px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-spicy-paprika" @click="editCourse(course.id)">
                 Edytuj kurs i zadania
@@ -231,6 +241,7 @@ onMounted(fetchAll)
           <p class="text-sm font-medium text-silver">Konta</p>
           <h2 class="text-xl font-bold text-charcoal-brown">Użytkownicy</h2>
         </div>
+        <p v-if="usersError" role="alert" class="text-sm font-semibold text-red-700">{{ usersError }}</p>
         <div v-if="users.length" class="overflow-x-auto rounded-xl border border-silver/50 bg-white shadow-sm">
           <table class="w-full min-w-[600px] border-collapse text-left">
             <thead class="bg-floral-white text-sm text-charcoal-brown/70">
@@ -333,7 +344,7 @@ onMounted(fetchAll)
               <tr v-for="fb in feedbacks" :key="fb.id">
                 <td class="px-5 py-4 font-medium">{{ fb.username }}</td>
                 <td class="px-5 py-4">
-                  <span 
+                  <span
                     class="rounded-full px-3 py-1 text-xs font-semibold"
                     :class="fb.lessonBlockId ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'"
                   >

@@ -4,7 +4,10 @@ import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 
 // --- INTERFEJSY ---
+// Pola `id` to ID z bazy. Przy edycji odsyłamy je do backendu, żeby zaktualizował istniejące
+// elementy zamiast kasować i tworzyć je od nowa (co usuwało odpowiedzi kursantów).
 interface QuestionOption {
+  id?: number
   text: string
   isCorrect: boolean
 }
@@ -13,21 +16,27 @@ type BlockType = 'text' | 'video' | 'question'
 type QuestionType = 'MultipleChoice' | 'TrueFalse' | 'TextAnswer'
 
 interface CourseBlock {
+  id?: number
   type: BlockType
   content?: string
   url?: string
   questionType?: QuestionType
   hint?: string
   options?: QuestionOption[]
+  // Pola bez edytora w kreatorze - przechowujemy je, żeby zapis ich nie skasował
+  frontText?: string | null
+  backText?: string | null
 }
 
 interface CourseLesson {
+  id?: number
   type: 'lesson'
   title: string
   blocks: CourseBlock[]
 }
 
 interface CourseModule {
+  id?: number
   type: 'module'
   title: string
   orderIndex: number
@@ -43,27 +52,34 @@ interface Course {
 
 // Interfejsy dla danych przychodzących z API (DTO)
 interface ApiOptionDto {
+  id: number
   optionText: string
   isCorrect: boolean
 }
 
 interface ApiBlockDto {
+  id: number
   type: number
+  orderIndex: number
   questionType?: QuestionType
   textContent?: string
   questionText?: string
   videoUrl?: string
   hint?: string
+  frontText?: string | null
+  backText?: string | null
   options?: ApiOptionDto[]
 }
 
 interface ApiLessonDto {
+  id: number
   title: string
   orderIndex: number
   blocks: ApiBlockDto[]
 }
 
 interface ApiModuleDto {
+  id: number
   title: string
   order: number
   lessons: ApiLessonDto[]
@@ -81,14 +97,22 @@ const course = ref<Course>({
 })
 
 const isEditing = ref(false)
+const isPublished = ref(false)
 const activeElement = ref<CourseModule | CourseLesson | null>(null)
 const isSaving = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 
+const getAuthConfig = () => {
+  const token = localStorage.getItem('token')
+  return token ? { headers: { Authorization: `Bearer ${token}` } } : {}
+}
+
 const getApiErrorMessage = (error: unknown, fallback: string): string => {
   if (axios.isAxiosError(error)) {
-    return error.response?.data?.message || fallback
+    const data = error.response?.data
+    if (typeof data === 'string' && data) return data
+    return data?.message || fallback
   }
 
   if (error instanceof Error) {
@@ -129,15 +153,15 @@ const addBlock = (lesson: CourseLesson, type: BlockType) => {
   } else if (type === 'video') {
     lesson.blocks.push({ type: 'video', url: '' })
   } else if (type === 'question') {
-    lesson.blocks.push({ 
-      type: 'question', 
-      questionType: 'MultipleChoice', 
-      content: '', 
+    lesson.blocks.push({
+      type: 'question',
+      questionType: 'MultipleChoice',
+      content: '',
       hint: '',
       options: [
         { text: '', isCorrect: false },
         { text: '', isCorrect: false }
-      ] 
+      ]
     })
   }
 }
@@ -178,45 +202,75 @@ const onQuestionTypeChange = (block: CourseBlock) => {
   }
 }
 
-const fetchCourseForEditing = async (id: string) => {
+// Zapamiętuje, który element był zaznaczony (po pozycji), żeby po ponownym wczytaniu kursu go przywrócić
+const getActivePath = (): { moduleIndex: number; lessonIndex: number | null } | null => {
+  const active = activeElement.value
+  if (!active) return null
+
+  for (let moduleIndex = 0; moduleIndex < course.value.modules.length; moduleIndex++) {
+    const module = course.value.modules[moduleIndex]
+    if (!module) continue
+    if (module === active) return { moduleIndex, lessonIndex: null }
+    const lessonIndex = module.lessons.indexOf(active as CourseLesson)
+    if (lessonIndex !== -1) return { moduleIndex, lessonIndex }
+  }
+  return null
+}
+
+const restoreActivePath = (path: { moduleIndex: number; lessonIndex: number | null } | null) => {
+  if (!path) return
+  const module = course.value.modules[path.moduleIndex]
+  if (!module) return
+  activeElement.value = path.lessonIndex === null ? module : (module.lessons[path.lessonIndex] ?? module)
+}
+
+const fetchCourseForEditing = async (id: string | number) => {
   try {
-    const token = localStorage.getItem('token')
-    const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {}
-    
-    const response = await axios.get(`/api/courses/${id}/content`, config)
+    const response = await axios.get(`/api/courses/${id}/content`, getAuthConfig())
     const data = response.data
-    
+
     isEditing.value = true
+    isPublished.value = !!data.isPublished
     course.value.id = data.id || id
     course.value.title = data.title
     course.value.description = data.description
 
     const mapLesson = (lesson: ApiLessonDto): CourseLesson => ({
+      id: lesson.id,
       type: 'lesson',
       title: lesson.title,
-      blocks: (lesson.blocks || []).map((block: ApiBlockDto): CourseBlock => {
-        let uiType: BlockType = 'text'
-        if (block.type === 3) uiType = 'video'
-        if (block.type === 1) uiType = 'question'
+      blocks: [...(lesson.blocks || [])]
+        .sort((a, b) => a.orderIndex - b.orderIndex)
+        .map((block: ApiBlockDto): CourseBlock => {
+          let uiType: BlockType = 'text'
+          if (block.type === 3) uiType = 'video'
+          if (block.type === 1) uiType = 'question'
 
-        return {
-          type: uiType,
-          content: block.textContent || block.questionText || '',
-          url: block.videoUrl || '',
-          hint: block.hint || '',
-          questionType: block.questionType ?? 'MultipleChoice',
-          options: block.options && block.options.length > 0 ? block.options.map((opt: ApiOptionDto) => ({
-            text: opt.optionText,
-            isCorrect: opt.isCorrect
-          })) : [ { text: '', isCorrect: false }, { text: '', isCorrect: false } ]
-        }
-      })
+          return {
+            id: block.id,
+            type: uiType,
+            content: block.textContent || block.questionText || '',
+            url: block.videoUrl || '',
+            hint: block.hint || '',
+            questionType: block.questionType ?? 'MultipleChoice',
+            frontText: block.frontText ?? null,
+            backText: block.backText ?? null,
+            options: block.options && block.options.length > 0
+              ? block.options.map((opt: ApiOptionDto) => ({
+                  id: opt.id,
+                  text: opt.optionText,
+                  isCorrect: opt.isCorrect
+                }))
+              : [ { text: '', isCorrect: false }, { text: '', isCorrect: false } ]
+          }
+        })
     })
 
     if (data.modules && data.modules.length > 0) {
       course.value.modules = [...data.modules]
         .sort((a: ApiModuleDto, b: ApiModuleDto) => a.order - b.order)
         .map((module: ApiModuleDto): CourseModule => ({
+          id: module.id,
           type: 'module',
           title: module.title,
           orderIndex: module.order,
@@ -249,64 +303,76 @@ onMounted(() => {
   }
 })
 
-const saveCourseData = async (isPublished: boolean) => {
+const buildPayload = (publish: boolean) => {
+  const modules = course.value.modules.map((module: CourseModule, mIdx: number) => ({
+    id: module.id ?? null,
+    title: module.title,
+    orderIndex: mIdx + 1,
+    lessons: module.lessons.map((lesson: CourseLesson, lIdx: number) => ({
+      id: lesson.id ?? null,
+      title: lesson.title,
+      orderIndex: mIdx * 100 + lIdx + 1,
+      blocks: lesson.blocks.map((block: CourseBlock, bIdx: number) => {
+        let blockType = 0
+        if (block.type === 'video') blockType = 3
+        if (block.type === 'question') blockType = 1
+
+        return {
+          id: block.id ?? null,
+          type: blockType,
+          orderIndex: bIdx + 1,
+          textContent: block.type === 'text' ? (block.content ?? null) : null,
+          videoUrl: block.type === 'video' ? (block.url ?? null) : null,
+          questionText: block.type === 'question' ? (block.content ?? null) : null,
+          questionType: block.type === 'question' ? (block.questionType ?? 'MultipleChoice') : 'MultipleChoice',
+          hint: block.type === 'question' ? (block.hint ?? null) : null,
+          frontText: block.frontText ?? null,
+          backText: block.backText ?? null,
+          options: block.type === 'question' && block.options ? block.options.map((opt: QuestionOption) => ({
+            id: opt.id ?? null,
+            optionText: opt.text,
+            isCorrect: block.questionType === 'TextAnswer' ? !!opt.text.trim() : opt.isCorrect
+          })) : []
+        }
+      })
+    }))
+  }))
+
+  return {
+    id: course.value.id,
+    isPublished: publish,
+    title: course.value.title,
+    description: course.value.description,
+    modules: modules
+  }
+}
+
+const saveCourseData = async (publish: boolean) => {
   isSaving.value = true
   errorMessage.value = ''
   successMessage.value = ''
 
   try {
-    const modules = course.value.modules.map((module: CourseModule, mIdx: number) => ({
-      title: module.title,
-      orderIndex: mIdx + 1,
-      lessons: module.lessons.map((lesson: CourseLesson, lIdx: number) => ({
-        title: lesson.title,
-        orderIndex: mIdx * 100 + lIdx + 1,
-        blocks: lesson.blocks.map((block: CourseBlock, bIdx: number) => {
-          let blockType = 0
-          if (block.type === 'video') blockType = 3
-          if (block.type === 'question') blockType = 1
+    const response = await axios.post('/api/courses/save', buildPayload(publish), getAuthConfig())
+    const savedId = response.data.id
 
-          return {
-            type: blockType,
-            orderIndex: bIdx + 1,
-            textContent: block.type === 'text' ? (block.content ?? null) : null,
-            videoUrl: block.type === 'video' ? (block.url ?? null) : null,
-            questionText: block.type === 'question' ? (block.content ?? null) : null,
-            questionType: block.type === 'question' ? (block.questionType ?? 'MultipleChoice') : 'MultipleChoice',
-            hint: block.type === 'question' ? (block.hint ?? null) : null,
-            options: block.type === 'question' && block.options ? block.options.map((opt: QuestionOption) => ({
-              optionText: opt.text,
-              isCorrect: block.questionType === 'TextAnswer' ? !!opt.text.trim() : opt.isCorrect
-            })) : []
-          }
-        })
-      }))
-    }))
+    isPublished.value = !!response.data.isPublished
 
-    const flattenedLessons = modules.flatMap(module => module.lessons)
-
-    const payload = {
-      id: course.value.id,
-      isPublished: isPublished,
-      title: course.value.title,
-      description: course.value.description,
-      modules: modules,
-      lessons: flattenedLessons
-    }
-
-    const token = localStorage.getItem('token')
-    const config = { headers: { Authorization: `Bearer ${token}` } }
-
-    const response = await axios.post('/api/courses/save', payload, config)
-    
     if (!course.value.id) {
-      course.value.id = response.data.id
-      isEditing.value = true 
-      router.replace(`/course-creator/${course.value.id}`)
+      course.value.id = savedId
+      isEditing.value = true
+      router.replace(`/course-creator/${savedId}`)
     }
 
-    successMessage.value = isPublished ? "Kurs został opublikowany!" : "Zapisano wersję roboczą!"
-    
+    // Wczytujemy kurs ponownie, żeby nowe moduły/lekcje/bloki dostały ID z bazy.
+    // Bez tego kolejny zapis potraktowałby je jako nowe i utworzył jeszcze raz.
+    const activePath = getActivePath()
+    await fetchCourseForEditing(savedId)
+    restoreActivePath(activePath)
+
+    successMessage.value = response.data.message
+      || (publish ? "Kurs został opublikowany!" : "Zapisano wersję roboczą!")
+
     setTimeout(() => {
       successMessage.value = ''
     }, 3000)
@@ -321,18 +387,42 @@ const saveCourseData = async (isPublished: boolean) => {
 
 const saveDraft = () => saveCourseData(false)
 const publishCourse = () => saveCourseData(true)
+const saveChanges = () => saveCourseData(isPublished.value)
+
+const unpublishCourse = () => {
+  if (!confirm('Cofnąć publikację? Kurs zniknie z katalogu, ale postępy kursantów zostaną zachowane.')) return
+  saveCourseData(false)
+}
 </script>
 
 <template>
   <div class="flex flex-col h-screen bg-floral-white text-charcoal-brown font-sans">
-    <header class="sticky top-0 z-10 flex justify-between items-center px-6 py-4 bg-charcoal-brown text-floral-white shadow-md">
-      <h1 class="text-xl font-bold">{{ isEditing ? 'Edytor kursu' : 'Kreator kursu' }}</h1>
+    <header class="sticky top-0 z-10 flex justify-between items-center gap-4 px-6 py-4 bg-charcoal-brown text-floral-white shadow-md">
+      <div class="flex items-center gap-3">
+        <h1 class="text-xl font-bold">{{ isEditing ? 'Edytor kursu' : 'Kreator kursu' }}</h1>
+        <span
+          v-if="isEditing"
+          class="rounded-full px-3 py-1 text-xs font-bold uppercase"
+          :class="isPublished ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'"
+        >
+          {{ isPublished ? 'Opublikowany' : 'Szkic' }}
+        </span>
+      </div>
       <div class="flex items-center gap-4">
-        <span v-if="errorMessage" class="text-spicy-paprika text-sm">{{ errorMessage }}</span>
+        <span v-if="errorMessage" class="text-spicy-paprika text-sm max-w-md text-right" role="alert">{{ errorMessage }}</span>
         <span v-else-if="isSaving" class="text-silver text-sm animate-pulse">Zapisywanie</span>
         <span v-else-if="successMessage" class="text-green-400 text-sm">{{ successMessage }}</span>
-        <button @click="saveDraft" :disabled="isSaving" class="px-4 py-2 border border-silver text-floral-white rounded-lg disabled:opacity-50">Zapisz wersję roboczą</button>
-        <button @click="publishCourse" :disabled="isSaving" class="px-5 py-2 bg-spicy-paprika text-white rounded-lg disabled:opacity-50">{{ isEditing ? 'Zapisz zmiany' : 'Opublikuj kurs' }}</button>
+
+        <!-- Szkic: zapisz szkic albo opublikuj -->
+        <template v-if="!isPublished">
+          <button @click="saveDraft" :disabled="isSaving" class="px-4 py-2 border border-silver text-floral-white rounded-lg disabled:opacity-50">Zapisz szkic</button>
+          <button @click="publishCourse" :disabled="isSaving" class="px-5 py-2 bg-spicy-paprika text-white rounded-lg disabled:opacity-50">Opublikuj kurs</button>
+        </template>
+        <!-- Opublikowany: zapis zmian nie zmienia statusu; cofnięcie publikacji jest osobną, świadomą akcją -->
+        <template v-else>
+          <button @click="unpublishCourse" :disabled="isSaving" class="px-4 py-2 border border-silver text-floral-white rounded-lg disabled:opacity-50">Cofnij publikację</button>
+          <button @click="saveChanges" :disabled="isSaving" class="px-5 py-2 bg-spicy-paprika text-white rounded-lg disabled:opacity-50">Zapisz zmiany</button>
+        </template>
       </div>
     </header>
 

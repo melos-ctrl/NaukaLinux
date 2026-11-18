@@ -1,19 +1,45 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 
+interface DesktopSessionDto {
+  port: number
+  containerId: string
+  connectionUrl: string
+}
+
 const desktopUrl = ref<string | null>(null)
 const activeContainerId = ref<string | null>(null)
 const isLoading = ref(false)
+const errorMessage = ref('')
 
-let heartbeatInterval: any = null
+let heartbeatInterval: ReturnType<typeof setInterval> | null = null
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-const startHeartbeat = (id: string) => {
+const authHeaders = (): HeadersInit => {
+  const token = localStorage.getItem('token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+const resetSession = () => {
   stopHeartbeat()
-  heartbeatInterval = setInterval(() => {
-    fetch(`/api/virtualdesktop/heartbeat?ContainerId=${id}`, { method: 'POST' })
-      .catch(error => console.error(error))
+  desktopUrl.value = null
+  activeContainerId.value = null
+}
+
+const startHeartbeat = () => {
+  stopHeartbeat()
+  heartbeatInterval = setInterval(async () => {
+    try {
+      const response = await fetch('/api/virtualdesktop/heartbeat', { method: 'POST', headers: authHeaders() })
+      // 404 = backend usunął kontener (np. po restarcie) - nie ma czego podtrzymywać
+      if (response.status === 404 || response.status === 401) {
+        resetSession()
+        errorMessage.value = 'Sesja środowiska wygasła. Uruchom je ponownie.'
+      }
+    } catch (error) {
+      console.error(error)
+    }
   }, 30000)
 }
 
@@ -24,14 +50,20 @@ const stopHeartbeat = () => {
   }
 }
 
-onMounted(() => {
-  const savedUrl = localStorage.getItem('desktopUrl')
-  const savedContainerId = localStorage.getItem('activeContainerId')
+// Backend pamięta, czy użytkownik ma już uruchomiony pulpit - nie trzymamy tego w localStorage
+onMounted(async () => {
+  if (!localStorage.getItem('token')) return
 
-  if (savedUrl && savedContainerId) {
-    desktopUrl.value = savedUrl
-    activeContainerId.value = savedContainerId
-    startHeartbeat(savedContainerId)
+  try {
+    const response = await fetch('/api/virtualdesktop/current', { headers: authHeaders() })
+    if (response.status === 200) {
+      const data: DesktopSessionDto = await response.json()
+      activeContainerId.value = data.containerId
+      desktopUrl.value = data.connectionUrl
+      startHeartbeat()
+    }
+  } catch (error) {
+    console.error(error)
   }
 })
 
@@ -42,24 +74,35 @@ onUnmounted(() => {
 const startSession = async () => {
   if (activeContainerId.value) return
 
+  errorMessage.value = ''
+
+  if (!localStorage.getItem('token')) {
+    errorMessage.value = 'Zaloguj się, aby uruchomić środowisko.'
+    return
+  }
+
   isLoading.value = true
   try {
-    const response = await fetch('/api/virtualdesktop/start', { method: 'POST' })
+    const response = await fetch('/api/virtualdesktop/start', { method: 'POST', headers: authHeaders() })
 
-    if (response.ok) {
-      const data = await response.json()
-      activeContainerId.value = data.containerId
-      localStorage.setItem('activeContainerId', data.containerId)
-
-      startHeartbeat(data.containerId)
-
-      await delay(8000)
-
-      desktopUrl.value = data.connectionUrl
-      localStorage.setItem('desktopUrl', data.connectionUrl)
+    if (!response.ok) {
+      errorMessage.value = response.status === 401
+        ? 'Sesja logowania wygasła. Zaloguj się ponownie.'
+        : (await response.text()) || 'Nie udało się uruchomić środowiska.'
+      return
     }
+
+    const data: DesktopSessionDto = await response.json()
+    activeContainerId.value = data.containerId
+    startHeartbeat()
+
+    // czekamy, aż KasmVNC w kontenerze wystartuje
+    await delay(8000)
+
+    desktopUrl.value = data.connectionUrl
   } catch (error) {
     console.error(error)
+    errorMessage.value = 'Nie udało się połączyć z serwerem.'
   } finally {
     isLoading.value = false
   }
@@ -69,17 +112,11 @@ const stopSession = async () => {
   if (!activeContainerId.value) return
 
   try {
-    await fetch(`/api/virtualdesktop/stop?ContainerId=${activeContainerId.value}`, { method: 'POST' })
-    
-    stopHeartbeat()
-    
-    desktopUrl.value = null
-    activeContainerId.value = null
-
-    localStorage.removeItem('activeContainerId')
-    localStorage.removeItem('desktopUrl')
+    await fetch('/api/virtualdesktop/stop', { method: 'POST', headers: authHeaders() })
+    resetSession()
   } catch (error) {
     console.error(error)
+    errorMessage.value = 'Nie udało się zatrzymać środowiska.'
   }
 }
 </script>
@@ -106,6 +143,8 @@ const stopSession = async () => {
         Zakończ sesję i usuń dane
       </button>
     </div>
+
+    <p v-if="errorMessage" role="alert" class="text-sm font-semibold text-red-700">{{ errorMessage }}</p>
 
     <div v-if="desktopUrl" class="w-full h-[750px] border-4 border-slate-800 rounded-lg overflow-hidden shadow-2xl relative mt-4">
       <iframe

@@ -1,12 +1,12 @@
-version: '3.8'
 services:
   db:
     image: postgres:16
     container_name: NaukaLinux
+    # Dane logowania czytane z pliku .env
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: bibibobo
-      POSTGRES_DB: NaukaLinux
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Ustaw POSTGRES_PASSWORD w pliku .env}
+      POSTGRES_DB: ${POSTGRES_DB:-NaukaLinux}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
