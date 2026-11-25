@@ -23,21 +23,45 @@ public class AuthController : ControllerBase
     private readonly AppDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly IEmailService _emailService;
+    private readonly ITurnstileService _turnstile;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(AppDbContext context, IConfiguration configuration, IEmailService emailService, ILogger<AuthController> logger)
+    public AuthController(
+        AppDbContext context,
+        IConfiguration configuration,
+        IEmailService emailService,
+        ITurnstileService turnstile,
+        ILogger<AuthController> logger)
     {
         _context = context;
         _configuration = configuration;
         _emailService = emailService;
+        _turnstile = turnstile;
         _logger = logger;
     }
 
     private string FrontendUrl => (_configuration["FrontendUrl"] ?? "http://localhost:5173").TrimEnd('/');
 
+    /// <summary>Sprawdza CAPTCHA, zanim dotkniemy bazy danych. Zwraca null, gdy weryfikacja przeszła.</summary>
+    private async Task<IActionResult?> VerifyCaptchaAsync(string? token)
+    {
+        var remoteIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+        if (await _turnstile.VerifyAsync(token, remoteIp, HttpContext.RequestAborted))
+            return null;
+
+        return BadRequest(new
+        {
+            Code = "captcha_failed",
+            Message = "Weryfikacja CAPTCHA nie powiodła się. Zaznacz pole „Nie jestem robotem” i spróbuj ponownie."
+        });
+    }
+
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterDto request)
     {
+        var captchaError = await VerifyCaptchaAsync(request.CfToken);
+        if (captchaError != null) return captchaError;
+
         var normalizedEmail = TokenHelper.NormalizeEmail(request.Email);
         var username = request.Username.Trim();
 
@@ -146,6 +170,9 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login([FromBody] LoginDto request)
     {
         const string invalidCredentials = "Nieprawidłowa nazwa użytkownika lub hasło.";
+
+        var captchaError = await VerifyCaptchaAsync(request.CfToken);
+        if (captchaError != null) return captchaError;
 
         var username = request.Username.Trim();
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);

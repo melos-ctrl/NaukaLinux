@@ -15,4 +15,6 @@ public class RegisterDto
     [Required]
     [PasswordPolicy]
     public string Password { get; set; } = string.Empty;
+
+    public string? CfToken { get; set; }
 }

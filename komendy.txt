@@ -1,50 +1,89 @@
 =========================================
 ŚCIĄGAWKA - KOMENDY DO PROJEKTU (VUE + .NET)
 =========================================
-[0] INSTALACJA PAKIETÓW 
+[0] INSTALACJA NARZĘDZI
 -----------------------------------------
-dotnet tool install --global dotnet-ef - instalacja narzedzi EF Core
-dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer - dodanie JWT
-dotnet add package Resend - dodanie Resend
+Potrzebne: Docker, Node.js + npm, .NET SDK 10
+
+dotnet tool install --global dotnet-ef - instalacja narzędzi EF Core
+
+Pakiety NuGet są już w Backend.csproj - wystarczy "dotnet restore" (robi się samo przy dotnet run).
+Gdyby trzeba było dodać je od zera:
+dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer
+dotnet add package Resend
 dotnet add package SixLabors.ImageSharp
 
 
-[1] BAZA DANYCH (Główny folder, przy docker-compose.yml)
+[1] SEKRETY (raz, przy pierwszym uruchomieniu)
+-----------------------------------------
+Hasła i klucze NIE są w repozytorium. Trzeba je ustawić lokalnie.
+
+a) Baza danych - w głównym folderze:
+   skopiuj .env.example jako .env i wpisz własne hasło w POSTGRES_PASSWORD
+
+b) Backend - w folderze Backend (hasło takie samo jak w .env):
+   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Database=NaukaLinux;Username=admin;Password=TWOJE_HASLO"
+   dotnet user-secrets set "Jwt:Key" "$(openssl rand -base64 48)"
+   dotnet user-secrets set "Resend:ApiKey" "re_TWOJ_KLUCZ_RESEND"
+   dotnet user-secrets set "Turnstile:SecretKey" "TWOJ_SECRET_KEY_Z_CLOUDFLARE"
+
+   Turnstile (CAPTCHA): Site Key idzie do frontendu (Frontend/.env: VITE_TURNSTILE_SITE_KEY),
+   Secret Key tylko do backendu (user-secrets / zmienna Turnstile__SecretKey) - NIGDY do frontendu.
+   Klucze testowe Cloudflare do pracy lokalnej (zawsze przechodzą):
+     Site Key:   1x00000000000000000000AA
+     Secret Key: 1x0000000000000000000000000000000AA
+   Bez Secret Key w trybie Development CAPTCHA jest pomijana (ostrzeżenie w logach),
+   a poza Development aplikacja nie wystartuje.
+
+   Podgląd ustawionych sekretów: dotnet user-secrets list
+
+   Na serwerze (produkcja) zamiast user-secrets ustaw zmienne środowiskowe:
+   ConnectionStrings__DefaultConnection, Jwt__Key, Resend__ApiKey, Turnstile__SecretKey,
+   FrontendUrl, Desktop__PublicHost
+
+
+[2] BAZA DANYCH (Główny folder, przy docker-compose.yaml)
 -----------------------------------------
 Włączenie bazy w tle:   docker compose up -d
 Wyłączenie bazy:        docker compose down
 
-[2] BACKEND (.NET Web API) (Folder Backend)
+
+[3] OBRAZ PULPITU KURSANTA (Główny folder, przy Dockerfile)
+-----------------------------------------
+Nazwa obrazu i sieci MUSI zgadzać się z sekcją "Desktop" w Backend/appsettings.json
+(domyślnie: obraz xubuntu-kurs, sieć kursanci).
+
+Zbudowanie obrazu:      docker build -t xubuntu-kurs .
+Sieć dla kursantów (kontenery nie widzą siebie nawzajem):
+                        docker network create --opt com.docker.network.bridge.enable_icc=false kursanci
+
+Uwaga: Dockerfile kopiuje folder materialy/ (pliki zadań) - musi istnieć obok Dockerfile.
+
+
+[4] BACKEND (.NET Web API) (Folder Backend)
 -----------------------------------------
 Uruchomienie API:       dotnet run
 Tworzenie migracji:     dotnet ef migrations add NazwaMigracji
 Aktualizacja bazy:      dotnet ef database update
 
-[3] FRONTEND (Vue.js) (Folder Frontend)
+
+[5] FRONTEND (Vue.js) (Folder Frontend)
 -----------------------------------------
+Instalacja zależności:  npm install
 Uruchomienie Vite:      npm run dev
+
 
 =========================================
 PRO-TIP DLA RIDERA:
-1. Baza: Ikona "Play" przy docker-compose.yml
+1. Baza: Ikona "Play" przy docker-compose.yaml
 2. Backend: Prawy górny róg -> Play (Shift + F10)
+   (sekrety: prawy klik na projekt Backend -> Tools -> .NET User Secrets)
 3. Frontend: package.json -> prawy klik -> "Show npm Scripts" -> podwójny klik na "dev"
 =========================================
 
-docker build -t naukalinux-xfce .  - > dodanie własnego zmodyfikowanego linucha
-docker network create --opt com.docker.network.bridge.enable_icc=false students_network - blokada sieci do sieci matki
 
-DEPLOY 
-
-Usuń wszystkie zmianki o localhost gotowe
-
-dodane
-ImageSharp
-
-instrukcja instalacji 
-pobranie dockera, npm i .net sdk 
-zainstalowanie tych rzeczy
-dotnet tool install --global dotnet-ef - instalacja narzedzi EF Core
-dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer - dodanie JWT
-dotnet add package Resend - dodanie Resend
-dotnet add package SixLabors.ImageSharp
+DEPLOY - DO ZROBIENIA
+-----------------------------------------
+- ustawić FrontendUrl i Desktop:PublicHost na prawdziwą domenę
+- porty pulpitów (3101+) są wystawione tylko na 127.0.0.1 - na serwerze trzeba je
+  udostępnić przez reverse proxy (np. nginx/Caddy) z HTTPS

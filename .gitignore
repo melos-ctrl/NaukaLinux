@@ -17,3 +17,4 @@ dist/
 postgres-data/
 pgdata/
 docker-compose.override.yml
+deploy.tgz

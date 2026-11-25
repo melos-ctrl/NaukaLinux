@@ -10,6 +10,9 @@ public sealed class DesktopSession
     public required int Slot { get; init; }
     public required int Port { get; init; }
     public required string ConnectionUrl { get; init; }
+
+    public required string AccessToken { get; init; }
+
     public DateTime LastHeartbeat { get; set; } = DateTime.UtcNow;
 }
 
@@ -17,7 +20,6 @@ public sealed class DesktopSessionStore
 {
     private readonly ConcurrentDictionary<int, DesktopSession> _sessionsByUser = new();
 
-    /// <summary>Blokada na czas uruchamiania kontenera, żeby dwa żądania nie zajęły tego samego slotu.</summary>
     public SemaphoreSlim StartLock { get; } = new(1, 1);
 
     public int Count => _sessionsByUser.Count;
@@ -32,9 +34,11 @@ public sealed class DesktopSessionStore
     public bool TryRemoveByUser(int userId, out DesktopSession session) =>
         _sessionsByUser.TryRemove(userId, out session!);
 
-    /// <summary>Usuwa wpis tylko wtedy, gdy to nadal ta sama sesja (a nie nowa, uruchomiona w międzyczasie).</summary>
     public bool TryRemove(DesktopSession session) =>
         _sessionsByUser.TryRemove(new KeyValuePair<int, DesktopSession>(session.UserId, session));
 
     public bool IsSlotTaken(int slot) => _sessionsByUser.Values.Any(session => session.Slot == slot);
+
+    public DesktopSession? FindByPort(int port) =>
+        _sessionsByUser.Values.FirstOrDefault(session => session.Port == port);
 }

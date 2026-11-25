@@ -2,9 +2,11 @@ using Backend.Data;
 using Resend;
 using Backend.Service;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Net;
 using System.Text;
 using System.Threading.RateLimiting;
 
@@ -24,7 +26,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 
-// --- JWT ---
+// JWT
 // Bez poprawnego klucza aplikacja nie wystartuje - lepiej to niż po cichu wyłączone logowanie.
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32 || jwtKey.StartsWith("TUTAJ_"))
@@ -49,7 +51,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// --- CORS ---
+// CORS
 var frontendUrl = (builder.Configuration["FrontendUrl"] ?? "http://localhost:5173").TrimEnd('/');
 builder.Services.AddCors(options =>
 {
@@ -61,7 +63,16 @@ builder.Services.AddCors(options =>
     });
 });
 
-// --- Limit żądań na endpointy logowania/rejestracji/resetu hasła (ochrona przed zgadywaniem haseł i spamem maili) ---
+// Prawdziwe IP klienta za nginx 
+// Bez tego każde żądanie wygląda, jakby przyszło z 127.0.0.1 (nginx), więc limit logowań
+// byłby wspólny dla wszystkich użytkowników. nginx podaje IP klienta w X-Forwarded-For.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownProxies.Add(IPAddress.Loopback);
+});
+
+// Limit żądań na endpointy logowania/rejestracji/resetu hasła (ochrona przed zgadywaniem haseł i spamem maili)
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -76,11 +87,25 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
-// --- Wirtualne pulpity ---
+// Wirtualne pulpity 
 builder.Services.AddSingleton<DesktopSessionStore>();
 builder.Services.AddHostedService<ContainerHeartBeatCleanUpService>();
 
-// --- Resend ---
+// Cloudflare Turnstile (CAPTCHA przy logowaniu i rejestracji) ---
+// Lokalnie można pracować bez klucza (weryfikacja jest wtedy pomijana z ostrzeżeniem w logach),
+// ale poza trybem Development brak klucza oznaczałby, że CAPTCHA nic nie chroni - nie startujemy.
+if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(builder.Configuration["Turnstile:SecretKey"]))
+{
+    throw new InvalidOperationException(
+        "Brak klucza Turnstile:SecretKey. Ustaw zmienną środowiskową Turnstile__SecretKey (instrukcja w komendy.txt).");
+}
+
+builder.Services.AddHttpClient<ITurnstileService, TurnstileService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
+// Resend
 builder.Services.AddResend(options =>
 {
     options.ApiToken = builder.Configuration["Resend:ApiKey"] ?? string.Empty;
@@ -89,6 +114,9 @@ builder.Services.AddResend(options =>
 builder.Services.AddScoped<IEmailService, ResendEmailService>();
 
 var app = builder.Build();
+
+// Musi być PIERWSZE - zanim cokolwiek odczyta IP klienta.
+app.UseForwardedHeaders();
 
 if (app.Environment.IsDevelopment())
 {

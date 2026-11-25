@@ -1,4 +1,7 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
 using Backend.Service;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,24 +14,27 @@ namespace Backend.Controllers;
 public class VirtualDesktopController : ControllerBase
 {
     private const int BasePort = 3100;
+    private const string DesktopCookieName = "nl_desktop";
 
     private readonly DesktopSessionStore _sessions;
     private readonly IConfiguration _configuration;
     private readonly ILogger<VirtualDesktopController> _logger;
+    private readonly IWebHostEnvironment _env;
 
     public VirtualDesktopController(
         DesktopSessionStore sessions,
         IConfiguration configuration,
-        ILogger<VirtualDesktopController> logger)
+        ILogger<VirtualDesktopController> logger,
+        IWebHostEnvironment env)
     {
         _sessions = sessions;
         _configuration = configuration;
         _logger = logger;
+        _env = env;
     }
 
     private string Image => _configuration["Desktop:Image"] ?? "xubuntu-kurs";
     private string Network => _configuration["Desktop:Network"] ?? "kursanci";
-    private string PublicHost => _configuration["Desktop:PublicHost"] ?? "localhost";
     private int MaxContainers => _configuration.GetValue("Desktop:MaxContainers", 20);
 
     [HttpGet("current")]
@@ -91,6 +97,8 @@ public class VirtualDesktopController : ControllerBase
                 "-v", "/var/lib/lxcfs/proc/loadavg:/proc/loadavg:ro",
                 "-v", "/var/lib/lxcfs/sys/devices/system/cpu/online:/sys/devices/system/cpu/online:ro",
                 "-e", "PUID=1000", "-e", "PGID=1000", "-e", "TZ=Europe/Warsaw", "-e", "TITLE=NaukaLinux",
+                // Pulpit działa pod ścieżką /desktop/{port}/ - przez nią wystawia go nginx.
+                "-e", $"SUBFOLDER=/desktop/{port}/",
                 Image
             ];
 
@@ -108,7 +116,12 @@ public class VirtualDesktopController : ControllerBase
                 UserId = userId,
                 Slot = slot,
                 Port = port,
-                ConnectionUrl = $"http://{PublicHost}:{port}"
+                // Lokalnie (bez nginx) łączymy się prosto z portem kontenera,
+                // na serwerze adres jest względny - ten sam origin co strona, więc działa przez HTTPS.
+                ConnectionUrl = _env.IsDevelopment()
+                    ? $"http://localhost:{port}/desktop/{port}/"
+                    : $"/desktop/{port}/",
+                AccessToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32))
             };
             _sessions.Add(session);
 
@@ -154,12 +167,51 @@ public class VirtualDesktopController : ControllerBase
         return Ok();
     }
 
-    private static object ToResponse(DesktopSession session) => new
+    /// <summary>
+    /// Wywoływane przez nginx (auth_request) przed wpuszczeniem do /desktop/{port}/.
+    /// Iframe nie wysyła nagłówka Authorization, dlatego właściciela pulpitu rozpoznajemy po ciasteczku
+    /// ustawionym w ToResponse. 200 = wpuść, 401 = nie wpuszczaj.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("authorize")]
+    public IActionResult AuthorizeDesktop()
     {
-        session.Port,
-        session.ContainerId,
-        session.ConnectionUrl
-    };
+        var uri = Request.Headers["X-Forwarded-Uri"].ToString();
+        var match = Regex.Match(uri, @"^/desktop/(\d+)/");
+        if (!match.Success || !int.TryParse(match.Groups[1].Value, out var port))
+            return Unauthorized();
+
+        var session = _sessions.FindByPort(port);
+        var cookie = Request.Cookies[DesktopCookieName];
+        if (session is null || string.IsNullOrEmpty(cookie))
+            return Unauthorized();
+
+        return CryptographicOperations.FixedTimeEquals(
+                   Encoding.UTF8.GetBytes(cookie),
+                   Encoding.UTF8.GetBytes(session.AccessToken))
+            ? Ok()
+            : Unauthorized();
+    }
+
+    /// <summary>Odpowiedź z danymi pulpitu + ciasteczko, które otwiera do niego dostęp.</summary>
+    private object ToResponse(DesktopSession session)
+    {
+        Response.Cookies.Append(DesktopCookieName, session.AccessToken, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Strict,
+            Path = $"/desktop/{session.Port}/",
+            MaxAge = TimeSpan.FromHours(4)
+        });
+
+        return new
+        {
+            session.Port,
+            session.ContainerId,
+            session.ConnectionUrl
+        };
+    }
 
     private bool TryGetUserId(out int userId) =>
         int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
