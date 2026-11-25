@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import RemoteDesktop from '../components/RemoteDesktop.vue';
+import MarkdownContent from '@/components/MarkdownContent.vue';
 
 interface QuizOption {
   id: number;
@@ -567,9 +568,12 @@ onMounted(() => {
                 </iframe>
               </div>
 
-              <p v-if="block.textContent" :class="['leading-relaxed text-floral-white', isVncOpen ? 'text-sm' : 'text-base']">
-                {{ block.textContent }}
-              </p>
+              <MarkdownContent
+                v-if="block.textContent"
+                :source="block.textContent"
+                dark
+                :class="isVncOpen ? 'text-sm' : 'text-base'"
+              />
 
               <div v-if="block.frontText" class="mt-4">
                 <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-silver">Polecenie do wpisania w terminalu:</p>

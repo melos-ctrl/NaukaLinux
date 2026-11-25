@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
+import MarkdownEditor from '@/components/MarkdownEditor.vue'
 
 // --- INTERFEJSY ---
 // Pola `id` to ID z bazy. Przy edycji odsyłamy je do backendu, żeby zaktualizował istniejące
@@ -488,7 +489,7 @@ const unpublishCourse = () => {
 
                 <div v-if="block.type === 'text'" class="flex flex-col gap-2">
                   <span class="badge badge-info">Blok tekstowy</span>
-                  <textarea v-model="block.content" rows="3" placeholder="Wpisz treść lekcji..." aria-label="Treść bloku tekstowego" class="input"></textarea>
+                  <MarkdownEditor v-model="block.content" placeholder="Wpisz treść lekcji..." aria-label="Treść bloku tekstowego" />
                 </div>
 
                 <div v-else-if="block.type === 'video'" class="flex flex-col gap-2">
