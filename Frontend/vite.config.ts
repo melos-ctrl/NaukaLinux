@@ -35,6 +35,16 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      // Pulpity kursantów: /desktop/3101/... -> kontener na 127.0.0.1:3101 (na produkcji robi to nginx)
+      '^/desktop/\\d+/': {
+        target: 'http://127.0.0.1:3101', // domyślny - właściwy port wybiera router poniżej
+        changeOrigin: true,
+        ws: true, // KasmVNC przesyła obraz przez WebSocket
+        router: (req) => {
+          const match = req.url?.match(/^\/desktop\/(\d+)\//)
+          return match ? `http://127.0.0.1:${match[1]}` : undefined
+        },
+      },
     }
   }
 })

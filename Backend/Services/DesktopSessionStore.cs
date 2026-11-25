@@ -14,6 +14,12 @@ public sealed class DesktopSession
     public required string AccessToken { get; init; }
 
     public DateTime LastHeartbeat { get; set; } = DateTime.UtcNow;
+    /// kiedy pulpit z kontenerem został uruchomiony.
+    public DateTime StartedAt { get; set; } = DateTime.UtcNow;
+
+    /// po tym czasie pulput zostanie zamknęty kiedy czas się skończy (niezależnie od aktywności użytkownika).
+    public required DateTime ExpiresAt { get; init; }
+    public bool IsExpired => DateTime.UtcNow >= ExpiresAt;
 }
 
 public sealed class DesktopSessionStore

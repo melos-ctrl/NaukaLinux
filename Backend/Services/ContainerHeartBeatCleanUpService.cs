@@ -1,10 +1,5 @@
 namespace Backend.Service;
 
-/// <summary>
-/// Sprząta pulpity kursantów:
-///  - przy starcie usuwa wszystkie kontenery z poprzedniego uruchomienia backendu (nikt już nie ma do nich ID),
-///  - co 30 s usuwa kontenery, które przestały wysyłać heartbeat.
-/// </summary>
 public class ContainerHeartBeatCleanUpService : BackgroundService
 {
     private static readonly TimeSpan CheckInterval = TimeSpan.FromSeconds(30);
@@ -36,15 +31,16 @@ public class ContainerHeartBeatCleanUpService : BackgroundService
                 await Task.Delay(CheckInterval, stoppingToken);
 
                 var threshold = DateTime.UtcNow - timeout;
-                foreach (var session in _sessions.All.Where(session => session.LastHeartbeat < threshold))
-                {
-                    if (!_sessions.TryRemove(session)) continue;
+            foreach (var session in _sessions.All.Where(session => session.LastHeartbeat < threshold || session.IsExpired))
+            {       
+                if (!_sessions.TryRemove(session)) continue;
 
-                    await DockerCli.RemoveContainerAsync(session.ContainerId, stoppingToken);
-                    _logger.LogInformation(
-                        "Usunięto nieaktywny pulpit {ContainerName} użytkownika {UserId}",
-                        session.ContainerName, session.UserId);
-                }
+                await DockerCli.RemoveContainerAsync(session.ContainerId, stoppingToken);
+                _logger.LogInformation(
+                "Usunięto pulpit {ContainerName} użytkownika {UserId} ({Reason})",
+                session.ContainerName, session.UserId,
+                session.IsExpired ? "minął limit czasu sesji" : "brak heartbeatu");
+            }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

@@ -35,39 +35,57 @@ public class VirtualDesktopController : ControllerBase
 
     private string Image => _configuration["Desktop:Image"] ?? "xubuntu-kurs";
     private string Network => _configuration["Desktop:Network"] ?? "kursanci";
-    private int MaxContainers => _configuration.GetValue("Desktop:MaxContainers", 20);
+    private int MaxContainers => _configuration.GetValue("Desktop:MaxContainers", 5);
+    private int MaxSessionMinutes => _configuration.GetValue("Desktop:MaxSessionMinutes", 60);
+    private string ConnectionUrlTemplate => _configuration["Desktop:ConnectionUrlTemplate"] ?? "/desktop/{port}/";
 
     [HttpGet("current")]
     public IActionResult GetCurrent()
     {
         if (!TryGetUserId(out var userId)) return Unauthorized();
 
-        return _sessions.TryGetByUser(userId, out var session)
+        return _sessions.TryGetByUser(userId, out var session) && !session.IsExpired
             ? Ok(ToResponse(session))
             : NoContent();
     }
 
-    [HttpPost("start")]
-    public async Task<IActionResult> StartDesktop(CancellationToken cancellationToken)
+[HttpPost("start")]
+public async Task<IActionResult> StartDesktop(CancellationToken cancellationToken)
+{
+    if (!TryGetUserId(out var userId)) return Unauthorized();
+
+    // Użytkownik ma już pulpit, który nie wygasł - zwracamy go zamiast uruchamiać nowy. 
+    if (_sessions.TryGetByUser(userId, out var existing) && !existing.IsExpired)
+        return Ok(ToResponse(existing));
+
+    await _sessions.StartLock.WaitAsync(cancellationToken);
+    try
     {
-        if (!TryGetUserId(out var userId)) return Unauthorized();
-
-        // Użytkownik ma już pulpit - oddajemy istniejący zamiast stawiać kolejny.
-        if (_sessions.TryGetByUser(userId, out var existing))
-            return Ok(ToResponse(existing));
-
-        await _sessions.StartLock.WaitAsync(cancellationToken);
-        try
+        if (_sessions.TryGetByUser(userId, out existing))
         {
-            if (_sessions.TryGetByUser(userId, out existing))
+            if (!existing.IsExpired)
                 return Ok(ToResponse(existing));
 
-            var slot = Enumerable.Range(1, MaxContainers).FirstOrDefault(s => !_sessions.IsSlotTaken(s));
-            if (slot == 0)
+            // Sesja minęła, ale sprzątacz jeszcze jej nie usunął
+            if (_sessions.TryRemove(existing))
+                await DockerCli.RemoveContainerAsync(existing.ContainerId, cancellationToken);
+        }
+
+        var slot = Enumerable.Range(1, MaxContainers).FirstOrDefault(s => !_sessions.IsSlotTaken(s));
+        if (slot == 0)
+        {
+            // Najbliższy moment, w którym zwolni się maszyna (najpóźniej po upływie limitu czasu sesji).
+            var minutesToFree = _sessions.All.Count == 0
+                ? 0
+                : Math.Max(1, (int)Math.Ceiling(_sessions.All.Min(s => s.ExpiresAt - DateTime.UtcNow).TotalMinutes));
+
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new
             {
-                return StatusCode(StatusCodes.Status503ServiceUnavailable,
-                    "Wszystkie środowiska są teraz zajęte. Spróbuj ponownie za kilka minut.");
-            }
+                message = $"Witaj! Wszystkie maszyny wirtualne są teraz zajęte :( ({MaxContainers}/{MaxContainers}). " +
+                          $"Maszyna może się zwolnić za {minutesToFree} min - spróbuj wtedy ponownie.",
+                minutesToFree
+            });
+        }
 
             var port = BasePort + slot;
             var containerName = $"lab-uczen-{slot}";
@@ -85,7 +103,7 @@ public class VirtualDesktopController : ControllerBase
                 "--label", $"naukalinux.user={userId}",
                 "--dns", "1.1.1.3", "--dns", "1.0.0.3",
                 "-p", $"127.0.0.1:{port}:3000",
-                "--memory=1g", "--memory-swap=1g", "--cpus=1", "--pids-limit=2000", "--shm-size=512m",
+                "--memory=1g", "--memory-swap=1g", "--cpus=1", "--pids-limit=2000", "--shm-size=512m","--storage-opt", "size=5G",
                 "--cap-drop=NET_RAW", "--cap-drop=MKNOD",
                 "--cap-drop=SYS_ADMIN", "--cap-drop=SYS_MODULE", "--cap-drop=SYS_BOOT", "--cap-drop=SYS_TIME",
                 "-v", "/var/lib/lxcfs/proc/cpuinfo:/proc/cpuinfo:ro",
@@ -109,6 +127,7 @@ public class VirtualDesktopController : ControllerBase
                 return StatusCode(500, "Wystąpił błąd podczas uruchamiania kontenera.");
             }
 
+            var now = DateTime.UtcNow;
             var session = new DesktopSession
             {
                 ContainerId = output,
@@ -116,17 +135,17 @@ public class VirtualDesktopController : ControllerBase
                 UserId = userId,
                 Slot = slot,
                 Port = port,
-                // Lokalnie (bez nginx) łączymy się prosto z portem kontenera,
-                // na serwerze adres jest względny - ten sam origin co strona, więc działa przez HTTPS.
-                ConnectionUrl = _env.IsDevelopment()
-                    ? $"http://localhost:{port}/desktop/{port}/"
-                    : $"/desktop/{port}/",
-                AccessToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32))
+                // Losowy token do ciasteczka - nginx pyta /authorize, czy przepuścić ruch do /desktop/{port}/
+                AccessToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)),
+                ConnectionUrl = $"/desktop/{port}/",
+                StartedAt = now,
+                ExpiresAt = now.AddMinutes(MaxSessionMinutes)
             };
             _sessions.Add(session);
 
-            _logger.LogInformation("Uruchomiono pulpit {ContainerName} dla użytkownika {UserId}", containerName, userId);
-            return Ok(ToResponse(session));
+            _logger.LogInformation("Uruchomiono pulpit {ContainerName} dla użytkownika {UserId} (do {ExpiresAt:HH:mm} UTC)",
+            containerName, userId, session.ExpiresAt);
+return Ok(ToResponse(session));
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -163,15 +182,15 @@ public class VirtualDesktopController : ControllerBase
         if (!_sessions.TryGetByUser(userId, out var session))
             return NotFound("Kontener nie istnieje lub już wygasł.");
 
-        session.LastHeartbeat = DateTime.UtcNow;
-        return Ok();
+        // 410 Gone = sesja skończyła się, bo minął limit czasu (frontend pokaże osobny komunikat).
+        if (session.IsExpired)
+            return StatusCode(StatusCodes.Status410Gone,
+                $"Minął limit {MaxSessionMinutes} min na sesję. Środowisko zostało wyłączone – możesz uruchomić je ponownie.");
+
+            session.LastHeartbeat = DateTime.UtcNow;
+            return Ok(new { session.ExpiresAt });
     }
 
-    /// <summary>
-    /// Wywoływane przez nginx (auth_request) przed wpuszczeniem do /desktop/{port}/.
-    /// Iframe nie wysyła nagłówka Authorization, dlatego właściciela pulpitu rozpoznajemy po ciasteczku
-    /// ustawionym w ToResponse. 200 = wpuść, 401 = nie wpuszczaj.
-    /// </summary>
     [AllowAnonymous]
     [HttpGet("authorize")]
     public IActionResult AuthorizeDesktop()
@@ -193,7 +212,6 @@ public class VirtualDesktopController : ControllerBase
             : Unauthorized();
     }
 
-    /// <summary>Odpowiedź z danymi pulpitu + ciasteczko, które otwiera do niego dostęp.</summary>
     private object ToResponse(DesktopSession session)
     {
         Response.Cookies.Append(DesktopCookieName, session.AccessToken, new CookieOptions
@@ -209,7 +227,8 @@ public class VirtualDesktopController : ControllerBase
         {
             session.Port,
             session.ContainerId,
-            session.ConnectionUrl
+            session.ConnectionUrl,
+            session.ExpiresAt
         };
     }
 
