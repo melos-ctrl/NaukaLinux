@@ -1,29 +1,118 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap');
 @import "tailwindcss";
-
-@layer base {
-  body {
-    font-family: "Inter", sans-serif;
-  }
-}
-
+ 
 @theme {
   /* kolory główne */
   --color-floral-white: #fffcf2;
-  --color-silver: #ccc5b9;
+  --color-silver: #ccc5b9;          /* TYLKO na ciemnym tle */
   --color-charcoal-brown: #403d39;
   --color-carbon-black: #252422;
-  --color-spicy-paprika: #eb5e28;
+  --color-spicy-paprika: #eb5e28;   /* akcent: focus, obramowania, aktywny link w headerze */
   --color-sage: #7a8b76;
-
+ 
+  /* nowe tokeny */
+  --color-paprika-600: #c2461a;     /* przyciski i linki na jasnym tle (kontrast 5:1) */
+  --color-paprika-700: #9e3712;     /* hover */
+  --color-muted: #6b645e;           /* opisy na jasnym tle (zamiast text-silver / gray-500 / charcoal-brown/70) */
+  --color-line: #e6e0d6;            /* ramki kart */
+  --color-line-strong: #d9d2c6;     /* ramki pól i przycisków outline */
+ 
   /* kolory dodatkowe */
   --color-sky-blue: #4a90e2;
   --color-amethyst: #9d63c9;
   --color-soft-coral: #e57a58;
-  
-  /* Kolory do etykiet i placeholderów */
   --color-label: #8a817c;
   --color-placeholder: #a8a39d;
-
-  --font-sans: "Inter", sans-serif;
+ 
+  --font-sans: "Ubuntu", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
+ 
+@layer base {
+  body {
+    @apply bg-floral-white font-sans text-carbon-black;
+  }
+}
+ 
+@layer components {
+  /* ---------- Nagłówek strony ---------- */
+  .eyebrow       { @apply text-sm font-semibold uppercase tracking-wider text-paprika-600; }
+  .page-title    { @apply mt-1 text-3xl font-bold text-carbon-black; }
+  .page-lead     { @apply mt-2 text-muted; }
+  .section-title { @apply text-xl font-bold text-carbon-black; }
+ 
+  /* ---------- Layout ---------- */
+  .page          { @apply mx-auto w-full max-w-6xl space-y-8 px-5 py-8 md:px-8 lg:py-10; }
+  .page-narrow   { @apply mx-auto w-full max-w-3xl space-y-8 px-5 py-8 md:px-8 lg:py-10; }
+  .card          { @apply rounded-2xl border border-line bg-white p-5 shadow-sm md:p-7; }
+  .card-hover    { @apply transition-shadow hover:shadow-md; }
+  .card-dark     { @apply rounded-2xl bg-charcoal-brown p-6 text-floral-white shadow-md md:p-8; }
+ 
+  /* ---------- Przyciski ---------- */
+  .btn {
+    @apply inline-flex h-11 items-center justify-center gap-2 rounded-lg border px-5
+           text-[15px] font-semibold transition-colors
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-spicy-paprika
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-sm      { @apply h-9 px-3.5 text-sm; }
+  .btn-primary { @apply border-paprika-600 bg-paprika-600 text-white hover:border-paprika-700 hover:bg-paprika-700; }
+  .btn-dark    { @apply border-charcoal-brown bg-charcoal-brown text-white hover:border-carbon-black hover:bg-carbon-black; }
+  .btn-outline { @apply border-line-strong bg-white text-carbon-black hover:border-spicy-paprika hover:text-paprika-600; }
+  .btn-ghost   { @apply border-transparent bg-transparent px-3 text-paprika-600 hover:bg-spicy-paprika/10; }
+  .btn-danger  { @apply border-red-700 bg-white text-red-700 hover:bg-red-700 hover:text-white; }
+  .btn-success { @apply border-green-700 bg-green-700 text-white hover:border-green-800 hover:bg-green-800; }
+  /* warianty na ciemne tło (header, sidebar, lekcja) */
+  .btn-light        { @apply border-floral-white bg-floral-white text-charcoal-brown hover:border-paprika-600 hover:bg-paprika-600 hover:text-white; }
+  .btn-outline-dark { @apply border-silver/40 bg-transparent text-floral-white hover:border-spicy-paprika hover:bg-white/5; }
+ 
+  /* ---------- Formularze ---------- */
+  .label       { @apply mb-1.5 block text-sm font-semibold text-carbon-black; }
+  .input {
+    @apply h-11 w-full rounded-lg border border-line-strong bg-white px-3.5 text-[15px] text-carbon-black
+           placeholder:text-placeholder outline-none transition
+           focus:border-spicy-paprika focus:ring-3 focus:ring-spicy-paprika/20
+           disabled:opacity-60;
+  }
+  textarea.input { @apply h-auto py-3; }
+  .input-dark  { @apply border-silver/50 bg-carbon-black text-floral-white placeholder:text-silver/60; }
+  .input-error { @apply border-red-700 focus:border-red-700 focus:ring-red-700/20; }
+  .field-error { @apply mt-1 text-sm text-red-700; }
+ 
+  /* ---------- Odznaki ---------- */
+  .badge         { @apply inline-flex w-fit items-center rounded-full bg-[#f1ede6] px-3 py-1 text-xs font-semibold text-charcoal-brown; }
+  .badge-primary { @apply bg-[#fdece4] text-[#a83c15]; }
+  .badge-success { @apply bg-[#e7f0e4] text-[#3d5a37]; }
+  .badge-warning { @apply bg-[#fbf0d4] text-[#7a5200]; }
+  .badge-info    { @apply bg-[#e5eefa] text-[#2a5a96]; }
+  .badge-danger  { @apply bg-[#fbe6e6] text-[#a51b1b]; }
+ 
+  /* ---------- Komunikaty ---------- */
+  .alert         { @apply rounded-lg border px-4 py-3 text-sm; }
+  .alert-error   { @apply border-[#f3c5c5] bg-[#fdf1f1] text-[#a51b1b]; }
+  .alert-success { @apply border-[#cfe0ca] bg-[#f2f7f0] text-[#3d5a37]; }
+  .alert-info    { @apply border-line bg-floral-white text-carbon-black; }
+  .empty-state   { @apply rounded-xl border border-dashed border-line-strong p-6 text-center text-muted; }
+ 
+  /* ---------- Tabele ---------- */
+  .table-wrap    { @apply overflow-x-auto rounded-2xl border border-line bg-white shadow-sm; }
+  .table         { @apply w-full border-collapse text-left; }
+  .table thead   { @apply bg-floral-white text-sm text-muted; }
+  .table th      { @apply px-5 py-4 font-semibold; }
+  .table td      { @apply px-5 py-4; }
+  .table tbody   { @apply divide-y divide-line; }
+ 
+  /* ---------- Sidebar (ciemny panel boczny) ---------- */
+  .side-link         { @apply block rounded-lg px-4 py-3 text-left font-medium text-silver transition-colors hover:bg-white/10 hover:text-floral-white; }
+  .side-link-active  { @apply bg-paprika-600 text-white hover:bg-paprika-600 hover:text-white; }
+ 
+  /* ---------- Header ---------- */
+  .nav-link        { @apply transition-colors hover:text-spicy-paprika; }
+  .nav-link-active { @apply font-bold text-spicy-paprika; }
+ 
+  /* ---------- Widoki pełnoekranowe (lekcja, kreator) ---------- */
+  /* 4.5rem = wysokość headera z App.vue */
+  .fullscreen-view { @apply h-[calc(100dvh-4.5rem)] min-h-0 overflow-hidden; }
+}
+ 

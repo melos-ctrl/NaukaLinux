@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Turnstile } from '@sctg/turnstile-vue3'
+import AuthCard from '@/components/AuthCard.vue'
 
 const email = ref('')
 const username = ref('')
@@ -11,6 +12,14 @@ const registrationComplete = ref(false)
 // Token do przechowywania tokenu Turnstile, używany do weryfikacji rejestracji.
 const turnstileToken = ref('')
 const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as string
+// Token Turnstile jest jednorazowy - po każdej próbie zmieniamy klucz,
+// co tworzy widget od nowa i generuje świeży token.
+const turnstileKey = ref(0)
+
+const resetTurnstile = () => {
+  turnstileToken.value = ''
+  turnstileKey.value++
+}
 
 const handleRegister = async () => {
   if (password.value !== confirmPassword.value) {
@@ -36,7 +45,7 @@ const handleRegister = async () => {
         email: email.value,
         username: username.value,
         password: password.value,
-        cfToken: turnstileToken.value // Dodanie tokenu Turnstile do żądania rejestracji
+        cfToken: turnstileToken.value // Token Turnstile sprawdzany przez backend w Cloudflare
       })
     })
 
@@ -53,55 +62,68 @@ const handleRegister = async () => {
       }
       registrationComplete.value = errorData.accountCreated === true
       message.value = errorData.message ?? `Błąd: ${errorText}`
-      turnstileToken.value = '' // resetowanie Turnsite po nieudanej rejestracji.
+      resetTurnstile() // zużyty token - potrzebny nowy do kolejnej próby
     }
   } catch (error) {
     console.error(error)
     registrationComplete.value = false
     message.value = 'Błąd połączenia z serwerem.'
+    resetTurnstile()
   }
 }
 </script>
 
 <template>
-  <div class="flex flex-col items-center justify-center h-screen">
-    <div class="bg-carbon-black p-8 rounded shadow flex flex-col items-center">
-      <h1 class="text-3xl font-bold text-floral-white">Rejestracja</h1>
+  <AuthCard eyebrow="Nowe konto" title="Rejestracja" lead="Załóż konto i zacznij naukę Linuxa.">
+    <form @submit.prevent="handleRegister" class="space-y-4">
+      <div>
+        <label for="email" class="label">E-mail</label>
+        <input v-model="email" class="input" type="email" id="email" autocomplete="email" required>
+      </div>
 
-      <form @submit.prevent="handleRegister" class="flex flex-col w-full max-w-sm mt-4 gap-2">
+      <div>
+        <label for="username" class="label">Nazwa użytkownika</label>
+        <input v-model="username" class="input" type="text" id="username" autocomplete="username" required>
+      </div>
 
-        <label for="email" class="text-floral-white">E-mail</label>
-        <input v-model="email" class="bg-carbon-black border border-silver rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-spicy-paprika text-floral-white" type="email" id="email" required>
+      <div>
+        <label for="password" class="label">Hasło</label>
+        <input v-model="password" class="input" type="password" id="password" autocomplete="new-password" required>
+      </div>
 
-        <label for="username" class="text-floral-white">Nazwa użytkownika</label>
-        <input v-model="username" class="bg-carbon-black border border-silver rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-spicy-paprika text-floral-white" type="text" id="username" required>
+      <div>
+        <label for="confirmPassword" class="label">Powtórz hasło</label>
+        <input v-model="confirmPassword" class="input" type="password" id="confirmPassword" autocomplete="new-password" required>
+      </div>
 
-        <label for="password" class="text-floral-white">Hasło</label>
-        <input v-model="password" class="bg-carbon-black border border-silver rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-spicy-paprika text-floral-white" type="password" id="password" required>
+      <!-- Widget Turnstile -->
+      <div class="flex justify-center">
+        <Turnstile
+          :key="turnstileKey"
+          :siteKey="turnstileSiteKey"
+          v-model="turnstileToken"
+        />
+      </div>
 
-        <label for="confirmPassword" class="text-floral-white">Powtórz Hasło</label>
-        <input v-model="confirmPassword" class="bg-carbon-black border border-silver rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-spicy-paprika text-floral-white" type="password" id="confirmPassword" required>
+      <p
+        v-if="message"
+        class="alert"
+        :class="registrationComplete ? 'alert-success' : 'alert-error'"
+        :role="registrationComplete ? 'status' : 'alert'"
+      >{{ message }}</p>
 
-        <!-- Widget Turnstile -->
-        <div class="mt-4 flex justify-center">
-          <Turnstile 
-            :siteKey="turnstileSiteKey" 
-            v-model="turnstileToken"
-          />
-        </div>
-
-
-        <button type="submit" class="bg-spicy-paprika text-floral-white px-4 py-2 rounded mt-4 hover:bg-floral-white hover:text-charcoal-brown  transition">Zarejestruj się</button>
-      </form>
-
-      <p v-if="message" class="mt-4 text-center font-bold" :class="registrationComplete ? 'text-emerald-400' : 'text-red-500'">{{ message }}</p>
       <router-link
         v-if="registrationComplete"
         :to="{ name: 'resend-verification', query: { email } }"
-        class="mt-2 text-sm text-spicy-paprika hover:underline"
+        class="block text-center text-sm font-medium text-paprika-600 hover:underline"
       >Nie dostałeś maila? Wyślij link ponownie</router-link>
 
-      <span class="mt-4 text-sm text-floral-white">Masz już konto? <a href="/login" class="text-spicy-paprika hover:underline">Zaloguj się</a></span>
-    </div>
-  </div>
+      <button type="submit" class="btn btn-primary w-full">Zarejestruj się</button>
+    </form>
+
+    <template #footer>
+      Masz już konto?
+      <router-link to="/login" class="font-semibold text-paprika-600 hover:underline">Zaloguj się</router-link>
+    </template>
+  </AuthCard>
 </template>

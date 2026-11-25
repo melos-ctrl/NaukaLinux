@@ -396,113 +396,134 @@ const unpublishCourse = () => {
 </script>
 
 <template>
-  <div class="flex flex-col h-screen bg-floral-white text-charcoal-brown font-sans">
-    <header class="sticky top-0 z-10 flex justify-between items-center gap-4 px-6 py-4 bg-charcoal-brown text-floral-white shadow-md">
+  <div class="fullscreen-view flex flex-col bg-floral-white text-carbon-black">
+    <!-- Pasek narzędzi kreatora (jasny - ciemny jest już header aplikacji) -->
+    <div class="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-line bg-white px-6 py-4">
       <div class="flex items-center gap-3">
-        <h1 class="text-xl font-bold">{{ isEditing ? 'Edytor kursu' : 'Kreator kursu' }}</h1>
+        <h1 class="section-title">{{ isEditing ? 'Edytor kursu' : 'Kreator kursu' }}</h1>
         <span
           v-if="isEditing"
-          class="rounded-full px-3 py-1 text-xs font-bold uppercase"
-          :class="isPublished ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'"
+          class="badge"
+          :class="isPublished ? 'badge-success' : 'badge-warning'"
         >
           {{ isPublished ? 'Opublikowany' : 'Szkic' }}
         </span>
       </div>
-      <div class="flex items-center gap-4">
-        <span v-if="errorMessage" class="text-spicy-paprika text-sm max-w-md text-right" role="alert">{{ errorMessage }}</span>
-        <span v-else-if="isSaving" class="text-silver text-sm animate-pulse">Zapisywanie</span>
-        <span v-else-if="successMessage" class="text-green-400 text-sm">{{ successMessage }}</span>
+      <div class="flex flex-wrap items-center gap-3">
+        <span v-if="errorMessage" class="max-w-md text-right text-sm text-red-700" role="alert">{{ errorMessage }}</span>
+        <span v-else-if="isSaving" class="text-sm text-muted animate-pulse" role="status">Zapisywanie...</span>
+        <span v-else-if="successMessage" class="text-sm font-medium text-green-700" role="status">{{ successMessage }}</span>
 
         <!-- Szkic: zapisz szkic albo opublikuj -->
         <template v-if="!isPublished">
-          <button @click="saveDraft" :disabled="isSaving" class="px-4 py-2 border border-silver text-floral-white rounded-lg disabled:opacity-50">Zapisz szkic</button>
-          <button @click="publishCourse" :disabled="isSaving" class="px-5 py-2 bg-spicy-paprika text-white rounded-lg disabled:opacity-50">Opublikuj kurs</button>
+          <button type="button" @click="saveDraft" :disabled="isSaving" class="btn btn-outline">Zapisz szkic</button>
+          <button type="button" @click="publishCourse" :disabled="isSaving" class="btn btn-primary">Opublikuj kurs</button>
         </template>
         <!-- Opublikowany: zapis zmian nie zmienia statusu; cofnięcie publikacji jest osobną, świadomą akcją -->
         <template v-else>
-          <button @click="unpublishCourse" :disabled="isSaving" class="px-4 py-2 border border-silver text-floral-white rounded-lg disabled:opacity-50">Cofnij publikację</button>
-          <button @click="saveChanges" :disabled="isSaving" class="px-5 py-2 bg-spicy-paprika text-white rounded-lg disabled:opacity-50">Zapisz zmiany</button>
+          <button type="button" @click="unpublishCourse" :disabled="isSaving" class="btn btn-outline">Cofnij publikację</button>
+          <button type="button" @click="saveChanges" :disabled="isSaving" class="btn btn-primary">Zapisz zmiany</button>
         </template>
       </div>
-    </header>
+    </div>
 
-    <div class="flex flex-1 overflow-hidden">
-      <aside class="w-80 bg-charcoal-brown border-r border-silver/50 p-4 flex flex-col gap-4 overflow-y-auto shrink-0">
-        <h2 class="text-lg font-semibold text-floral-white border-b border-silver/30 pb-2">Struktura kursu</h2>
-        <label class="text-xs font-bold text-floral-white">Tytuł kursu
-          <input v-model="course.title" type="text" class="mt-1 bg-floral-white text-charcoal-brown w-full px-3 py-2 border border-silver rounded-md" />
-        </label>
-        <label class="text-xs font-bold text-floral-white">Opis
-          <textarea v-model="course.description" rows="2" class="mt-1 bg-floral-white text-charcoal-brown w-full px-3 py-2 border border-silver rounded-md resize-y"></textarea>
-        </label>
-        <div class="border-t border-silver/30"></div>
+    <div class="flex min-h-0 flex-1 gap-6 overflow-hidden p-4 md:p-6">
+      <aside class="flex w-80 shrink-0 flex-col gap-4 overflow-y-auto rounded-2xl bg-charcoal-brown p-4 text-floral-white shadow-lg">
+        <h2 class="border-b border-silver/20 pb-2 font-bold">Struktura kursu</h2>
+        <div>
+          <label for="course-title" class="mb-1.5 block text-sm font-semibold">Tytuł kursu</label>
+          <input id="course-title" v-model="course.title" type="text" class="input" />
+        </div>
+        <div>
+          <label for="course-description" class="mb-1.5 block text-sm font-semibold">Opis</label>
+          <textarea id="course-description" v-model="course.description" rows="2" class="input resize-y"></textarea>
+        </div>
+        <div class="border-t border-silver/20"></div>
         <div v-for="(module, mIndex) in course.modules" :key="mIndex" class="flex flex-col gap-1">
-          <button @click="selectElement(module)" :class="['px-3 py-2 border rounded-md text-left text-sm', activeElement === module ? 'bg-spicy-paprika text-white' : 'text-floral-white border-silver/30']">{{ module.title }}</button>
-          <div class="flex flex-col pl-4 gap-1 border-l-2 border-silver/30 ml-2">
-            <button v-for="(lesson, lIndex) in module.lessons" :key="lIndex" @click="selectElement(lesson)" :class="['px-3 py-1.5 border rounded-md text-left text-sm', activeElement === lesson ? 'bg-spicy-paprika text-white' : 'bg-floral-white text-charcoal-brown border-silver']">{{ lesson.title }}</button>
+          <button
+            type="button"
+            @click="selectElement(module)"
+            class="side-link font-semibold"
+            :class="{ 'side-link-active': activeElement === module }"
+          >{{ module.title }}</button>
+          <div class="ml-2 flex flex-col gap-1 border-l-2 border-silver/20 pl-3">
+            <button
+              v-for="(lesson, lIndex) in module.lessons"
+              :key="lIndex"
+              type="button"
+              @click="selectElement(lesson)"
+              class="side-link py-2 text-sm"
+              :class="{ 'side-link-active': activeElement === lesson }"
+            >{{ lesson.title }}</button>
           </div>
         </div>
-        <button @click="addModule" class="mt-2 px-4 py-2 w-full border-2 border-dashed border-silver/50 text-silver text-sm rounded-lg">+ Dodaj moduł</button>
+        <button type="button" @click="addModule" class="btn btn-outline-dark mt-2 w-full border-dashed">+ Dodaj moduł</button>
       </aside>
 
-      <main class="flex-1 p-8 overflow-y-auto bg-floral-white">
-        <div v-if="!activeElement" class="h-full flex items-center justify-center text-silver">Wybierz element do edycji.</div>
-        <section v-else-if="activeElement.type === 'module'" class="bg-white p-6 rounded-lg border border-silver">
-          <h2 class="text-xl font-bold mb-6">Edycja modułu</h2>
-          <label class="text-sm font-semibold">Tytuł modułu
-            <input v-model="activeElement.title" type="text" class="w-full mt-1 px-4 py-2 border border-silver rounded-md" />
-          </label>
-          <div class="border-t border-silver mt-6 pt-6">
-            <button @click="addLesson(activeElement)" class="px-5 py-2 bg-carbon-black text-white rounded-md">+ Dodaj lekcję do modułu</button>
+      <main class="min-w-0 flex-1 overflow-y-auto">
+        <p v-if="!activeElement" class="empty-state">Wybierz element do edycji.</p>
+
+        <section v-else-if="activeElement.type === 'module'" class="card space-y-6">
+          <h2 class="section-title">Edycja modułu</h2>
+          <div>
+            <label for="module-title" class="label">Tytuł modułu</label>
+            <input id="module-title" v-model="activeElement.title" type="text" class="input" />
+          </div>
+          <div class="border-t border-line pt-6">
+            <button type="button" @click="addLesson(activeElement)" class="btn btn-dark">+ Dodaj lekcję do modułu</button>
           </div>
         </section>
 
-        <section v-else-if="activeElement.type === 'lesson'" class="bg-white p-6 rounded-lg border border-silver">
-          <h2 class="text-xl font-bold mb-6">Edycja lekcji</h2>
-          <label class="text-sm font-semibold">Tytuł lekcji
-            <input v-model="activeElement.title" type="text" class="w-full mt-1 px-4 py-2 border border-silver rounded-md" />
-          </label>
-          <div class="border-t border-silver mt-6 pt-6">
-            <h3 class="text-sm font-bold text-silver uppercase mb-4">Zawartość lekcji</h3>
-            <div class="flex flex-col gap-4 mb-6">
-              <article v-for="(block, bIndex) in activeElement.blocks" :key="bIndex" class="relative p-4 border border-silver rounded-lg bg-floral-white">
-                <button @click="removeBlock(activeElement, bIndex)" class="absolute top-2 right-2 text-silver hover:text-spicy-paprika" aria-label="Usuń blok">✕</button>
+        <section v-else-if="activeElement.type === 'lesson'" class="card space-y-6">
+          <h2 class="section-title">Edycja lekcji</h2>
+          <div>
+            <label for="lesson-title" class="label">Tytuł lekcji</label>
+            <input id="lesson-title" v-model="activeElement.title" type="text" class="input" />
+          </div>
+          <div class="border-t border-line pt-6">
+            <h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">Zawartość lekcji</h3>
+            <div class="mb-6 flex flex-col gap-4">
+              <article v-for="(block, bIndex) in activeElement.blocks" :key="bIndex" class="relative rounded-xl border border-line bg-floral-white p-4">
+                <button type="button" @click="removeBlock(activeElement, bIndex)" class="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-red-50 hover:text-red-700" aria-label="Usuń blok">✕</button>
+
                 <div v-if="block.type === 'text'" class="flex flex-col gap-2">
-                  <label class="text-xs font-bold text-sky-blue">Blok tekstowy</label>
-                  <textarea v-model="block.content" rows="3" placeholder="Wpisz treść lekcji..." class="px-3 py-2 border border-silver rounded-md"></textarea>
+                  <span class="badge badge-info">Blok tekstowy</span>
+                  <textarea v-model="block.content" rows="3" placeholder="Wpisz treść lekcji..." aria-label="Treść bloku tekstowego" class="input"></textarea>
                 </div>
+
                 <div v-else-if="block.type === 'video'" class="flex flex-col gap-2">
-                  <label class="text-xs font-bold text-soft-coral">Blok wideo</label>
-                  <input v-model="block.url" type="url" placeholder="https://youtube.com/..." class="px-3 py-2 border border-silver rounded-md" />
+                  <span class="badge badge-primary">Blok wideo</span>
+                  <input v-model="block.url" type="url" placeholder="https://youtube.com/..." aria-label="Adres filmu" class="input" />
                 </div>
+
                 <div v-else class="flex flex-col gap-4">
-                  <label class="text-xs font-bold text-amethyst">Typ pytania</label>
-                  <div class="flex flex-col sm:flex-row gap-3">
-                    <select v-model="block.questionType" @change="onQuestionTypeChange(block)" class="px-3 py-2 border border-silver bg-white rounded-md text-sm">
+                  <span class="badge bg-amethyst/10 text-[#6d3a96]">Pytanie</span>
+                  <div class="flex flex-col gap-3 sm:flex-row">
+                    <select v-model="block.questionType" @change="onQuestionTypeChange(block)" aria-label="Typ pytania" class="input sm:w-56">
                       <option value="MultipleChoice">Wielokrotny wybór</option>
                       <option value="TrueFalse">Prawda / Fałsz</option>
                       <option value="TextAnswer">Odpowiedź tekstowa</option>
                     </select>
-                    <input v-model="block.content" type="text" placeholder="Treść pytania..." class="flex-1 px-3 py-2 border border-silver rounded-md text-sm" />
+                    <input v-model="block.content" type="text" placeholder="Treść pytania..." aria-label="Treść pytania" class="input flex-1" />
                   </div>
-                  <input v-model="block.hint" type="text" placeholder="Podpowiedź dla ucznia (opcjonalnie)" class="w-full px-3 py-2 border border-silver rounded-md text-sm" />
-                  <div class="pl-4 border-l-2 border-amethyst/30">
-                    <p class="text-xs text-silver mb-2">{{ block.questionType === 'TextAnswer' ? 'Akceptowane odpowiedzi' : block.questionType === 'TrueFalse' ? 'Opcje prawda/fałsz, zaznacz poprawną' : 'Opcje odpowiedzi, zaznacz wszystkie poprawne' }}</p>
-                    <div v-for="(option, oIndex) in block.options" :key="oIndex" class="flex items-center gap-3 mb-2">
-                      <input v-if="block.questionType !== 'TextAnswer'" v-model="option.isCorrect" @change="onOptionCorrectChange(block, oIndex)" type="checkbox" class="w-4 h-4" :aria-label="`Poprawna odpowiedź ${oIndex + 1}`" />
-                      <input v-model="option.text" type="text" :placeholder="block.questionType === 'TextAnswer' ? 'Akceptowana odpowiedź...' : 'Odpowiedź...'" class="flex-1 px-3 py-1.5 border border-silver rounded-md text-sm" />
-                      <button @click="removeOption(block, oIndex)" class="text-xs text-silver hover:text-spicy-paprika">Usuń</button>
+                  <input v-model="block.hint" type="text" placeholder="Podpowiedź dla ucznia (opcjonalnie)" aria-label="Podpowiedź" class="input" />
+                  <div class="border-l-2 border-amethyst/30 pl-4">
+                    <p class="mb-2 text-xs text-muted">{{ block.questionType === 'TextAnswer' ? 'Akceptowane odpowiedzi' : block.questionType === 'TrueFalse' ? 'Opcje prawda/fałsz, zaznacz poprawną' : 'Opcje odpowiedzi, zaznacz wszystkie poprawne' }}</p>
+                    <div v-for="(option, oIndex) in block.options" :key="oIndex" class="mb-2 flex items-center gap-3">
+                      <input v-if="block.questionType !== 'TextAnswer'" v-model="option.isCorrect" @change="onOptionCorrectChange(block, oIndex)" type="checkbox" class="h-4 w-4 accent-paprika-600" :aria-label="`Poprawna odpowiedź ${oIndex + 1}`" />
+                      <input v-model="option.text" type="text" :placeholder="block.questionType === 'TextAnswer' ? 'Akceptowana odpowiedź...' : 'Odpowiedź...'" :aria-label="`Odpowiedź ${oIndex + 1}`" class="input h-10 flex-1 text-sm" />
+                      <button type="button" @click="removeOption(block, oIndex)" class="btn btn-ghost btn-sm text-muted hover:text-red-700">Usuń</button>
                     </div>
-                    <button v-if="block.questionType !== 'TrueFalse'" @click="addOption(block)" class="text-xs text-amethyst font-semibold mt-1">+ Dodaj odpowiedź</button>
+                    <button v-if="block.questionType !== 'TrueFalse'" type="button" @click="addOption(block)" class="btn btn-ghost btn-sm">+ Dodaj odpowiedź</button>
                   </div>
                 </div>
               </article>
             </div>
-            <div class="flex flex-wrap gap-3 justify-center p-4 border-2 border-dashed border-silver rounded-lg">
-              <span class="text-sm text-silver self-center">Dodaj element:</span>
-              <button @click="addBlock(activeElement, 'text')" class="px-4 py-2 bg-sky-blue/10 text-sky-blue text-sm font-semibold rounded-md">Tekst</button>
-              <button @click="addBlock(activeElement, 'video')" class="px-4 py-2 bg-soft-coral/10 text-soft-coral text-sm font-semibold rounded-md">Wideo</button>
-              <button @click="addBlock(activeElement, 'question')" class="px-4 py-2 bg-amethyst/10 text-amethyst text-sm font-semibold rounded-md">Pytanie</button>
+            <div class="flex flex-wrap justify-center gap-3 rounded-xl border-2 border-dashed border-line-strong p-4">
+              <span class="self-center text-sm text-muted">Dodaj element:</span>
+              <button type="button" @click="addBlock(activeElement, 'text')" class="btn btn-outline btn-sm">Tekst</button>
+              <button type="button" @click="addBlock(activeElement, 'video')" class="btn btn-outline btn-sm">Wideo</button>
+              <button type="button" @click="addBlock(activeElement, 'question')" class="btn btn-outline btn-sm">Pytanie</button>
             </div>
           </div>
         </section>

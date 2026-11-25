@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import SidebarLayout from '@/components/SidebarLayout.vue';
+import StudentNav from '@/components/StudentNav.vue';
+import PageHeader from '@/components/PageHeader.vue';
 
 type AccountProfile = {
     username: string;
@@ -206,36 +209,29 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="-m-4 min-h-full flex-1 bg-floral-white p-5 md:p-8 lg:p-10">
-        <div class="mx-auto w-full max-w-4xl space-y-8">
-            <header>
-                <p class="text-sm font-semibold uppercase tracking-wider text-spicy-paprika">
-                    Konto
-                </p>
-                <h1 class="mt-1 text-3xl font-bold text-charcoal-brown">
-                    Ustawienia
-                </h1>
-                <p class="mt-2 text-charcoal-brown/70">
-                    Zarządzaj danymi i bezpieczeństwem swojego konta.
-                </p>
-            </header>
+    <SidebarLayout>
+        <template #nav>
+            <StudentNav />
+        </template>
 
-            <section class="rounded-2xl border border-silver/50 bg-white p-5 shadow-sm md:p-7">
+        <div class="max-w-3xl space-y-8">
+            <PageHeader
+                eyebrow="Konto"
+                title="Ustawienia"
+                lead="Zarządzaj danymi i bezpieczeństwem swojego konta."
+            />
+
+            <section class="card">
                 <div class="mb-6">
-                    <h2 class="text-xl font-bold text-charcoal-brown">Dane konta</h2>
-                    <p class="mt-1 text-sm text-charcoal-brown/70">
+                    <h2 class="section-title">Dane konta</h2>
+                    <p class="mt-1 text-sm text-muted">
                         Podstawowe informacje przypisane do Twojego konta.
                     </p>
                 </div>
 
                 <form class="space-y-5" @submit.prevent="saveAccount">
                     <div>
-                        <label
-                            for="username"
-                            class="mb-2 block text-sm font-semibold text-charcoal-brown"
-                        >
-                            Nazwa użytkownika
-                        </label>
+                        <label for="username" class="label">Nazwa użytkownika</label>
                         <input
                             id="username"
                             name="username"
@@ -245,17 +241,12 @@ onMounted(() => {
                             maxlength="100"
                             required
                             :disabled="isLoadingAccount || isSavingAccount"
-                            class="w-full rounded-lg border border-silver bg-floral-white px-4 py-3 text-charcoal-brown outline-none transition focus:border-spicy-paprika focus:ring-2 focus:ring-spicy-paprika/20"
+                            class="input"
                         />
                     </div>
 
                     <div>
-                        <label
-                            for="email"
-                            class="mb-2 block text-sm font-semibold text-charcoal-brown"
-                        >
-                            Adres e-mail
-                        </label>
+                        <label for="email" class="label">Adres e-mail</label>
                         <input
                             id="email"
                             name="email"
@@ -264,16 +255,14 @@ onMounted(() => {
                             maxlength="254"
                             required
                             :disabled="isLoadingAccount || isSavingAccount"
-                            class="w-full rounded-lg border border-silver bg-floral-white px-4 py-3 text-charcoal-brown outline-none transition focus:border-spicy-paprika focus:ring-2 focus:ring-spicy-paprika/20"
+                            class="input"
                         />
                     </div>
 
                     <p
                         v-if="accountMessage"
-                        class="rounded-lg border px-4 py-3 text-sm"
-                        :class="isAccountMessageError
-                            ? 'border-red-200 bg-red-50 text-red-700'
-                            : 'border-silver/50 bg-floral-white text-charcoal-brown'"
+                        class="alert"
+                        :class="isAccountMessageError ? 'alert-error' : 'alert-success'"
                         role="status"
                         aria-live="polite"
                     >
@@ -283,24 +272,24 @@ onMounted(() => {
                     <button
                         type="submit"
                         :disabled="isLoadingAccount || isSavingAccount"
-                        class="inline-flex w-full items-center justify-center rounded-lg bg-charcoal-brown px-5 py-3 font-semibold text-white transition-colors hover:bg-spicy-paprika focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-spicy-paprika disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        class="btn btn-dark w-full sm:w-auto"
                     >
                         {{ isLoadingAccount ? 'Ładowanie...' : isSavingAccount ? 'Zapisywanie...' : 'Zapisz zmiany' }}
                     </button>
                 </form>
             </section>
 
-            <section class="rounded-2xl border border-silver/50 bg-white p-5 shadow-sm md:p-7">
+            <section class="card">
                 <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                     <div>
-                        <h2 class="text-xl font-bold text-charcoal-brown">Bezpieczeństwo</h2>
-                        <p class="mt-1 text-sm text-charcoal-brown/70">
+                        <h2 class="section-title">Bezpieczeństwo</h2>
+                        <p class="mt-1 text-sm text-muted">
                             Zmieniaj hasło regularnie, aby lepiej chronić konto.
                         </p>
                     </div>
                     <button
                         type="button"
-                        class="inline-flex shrink-0 items-center justify-center rounded-lg border border-silver px-4 py-2.5 font-semibold text-charcoal-brown transition-colors hover:border-spicy-paprika hover:bg-spicy-paprika hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-spicy-paprika"
+                        class="btn btn-outline shrink-0"
                         :aria-expanded="isPasswordFormOpen"
                         @click="isPasswordFormOpen = !isPasswordFormOpen"
                     >
@@ -310,33 +299,23 @@ onMounted(() => {
 
                 <form
                     v-if="isPasswordFormOpen"
-                    class="mt-6 space-y-5 border-t border-silver/40 pt-6"
+                    class="mt-6 space-y-5 border-t border-line pt-6"
                     @submit.prevent="changePassword"
                 >
                     <div>
-                        <label
-                            for="current-password"
-                            class="mb-2 block text-sm font-semibold text-charcoal-brown"
-                        >
-                            Aktualne hasło
-                        </label>
+                        <label for="current-password" class="label">Aktualne hasło</label>
                         <input
                             id="current-password"
                             v-model="currentPassword"
                             type="password"
                             autocomplete="current-password"
                             required
-                            class="w-full rounded-lg border border-silver bg-floral-white px-4 py-3 text-charcoal-brown outline-none transition focus:border-spicy-paprika focus:ring-2 focus:ring-spicy-paprika/20"
+                            class="input"
                         />
                     </div>
 
                     <div>
-                        <label
-                            for="new-password"
-                            class="mb-2 block text-sm font-semibold text-charcoal-brown"
-                        >
-                            Nowe hasło
-                        </label>
+                        <label for="new-password" class="label">Nowe hasło</label>
                         <input
                             id="new-password"
                             v-model="newPassword"
@@ -344,17 +323,12 @@ onMounted(() => {
                             autocomplete="new-password"
                             minlength="8"
                             required
-                            class="w-full rounded-lg border border-silver bg-floral-white px-4 py-3 text-charcoal-brown outline-none transition focus:border-spicy-paprika focus:ring-2 focus:ring-spicy-paprika/20"
+                            class="input"
                         />
                     </div>
 
                     <div>
-                        <label
-                            for="confirm-password"
-                            class="mb-2 block text-sm font-semibold text-charcoal-brown"
-                        >
-                            Powtórz nowe hasło
-                        </label>
+                        <label for="confirm-password" class="label">Powtórz nowe hasło</label>
                         <input
                             id="confirm-password"
                             v-model="confirmPassword"
@@ -362,42 +336,41 @@ onMounted(() => {
                             autocomplete="new-password"
                             minlength="8"
                             required
-                            class="w-full rounded-lg border border-silver bg-floral-white px-4 py-3 text-charcoal-brown outline-none transition focus:border-spicy-paprika focus:ring-2 focus:ring-spicy-paprika/20"
+                            class="input"
                         />
                     </div>
-
-                    <p
-                        v-if="passwordMessage"
-                        class="rounded-lg border border-silver/50 bg-floral-white px-4 py-3 text-sm text-charcoal-brown"
-                        role="status"
-                        aria-live="polite"
-                    >
-                        {{ passwordMessage }}
-                    </p>
 
                     <button
                         type="submit"
                         :disabled="isSavingPassword"
-                        class="inline-flex w-full items-center justify-center rounded-lg bg-spicy-paprika px-5 py-3 font-semibold text-white transition-colors hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-spicy-paprika disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        class="btn btn-primary w-full sm:w-auto"
                     >
                         {{ isSavingPassword ? 'Zapisywanie...' : 'Zapisz nowe hasło' }}
                     </button>
                 </form>
+
+                <!-- poza formularzem, żeby komunikat "Hasło zostało zmienione" był widoczny po jego zamknięciu -->
+                <p
+                    v-if="passwordMessage"
+                    class="alert alert-info mt-5"
+                    role="status"
+                    aria-live="polite"
+                >
+                    {{ passwordMessage }}
+                </p>
             </section>
 
-            <section
-                class="rounded-2xl border border-red-200 bg-white p-5 shadow-sm md:p-7"
-            >
+            <section class="card border-red-200">
                 <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                     <div>
-                        <h2 class="text-xl font-bold text-charcoal-brown">Usuń konto</h2>
-                        <p class="mt-1 text-sm text-charcoal-brown/70">
+                        <h2 class="section-title">Usuń konto</h2>
+                        <p class="mt-1 text-sm text-muted">
                             Ta czynność jest nieodwracalna.
                         </p>
                     </div>
                     <button
                         type="button"
-                        class="inline-flex shrink-0 items-center justify-center rounded-lg border border-red-300 px-4 py-2.5 font-semibold text-red-700 transition-colors hover:bg-red-600 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+                        class="btn btn-danger shrink-0"
                         :aria-expanded="isDeleteFormOpen"
                         @click="isDeleteFormOpen = !isDeleteFormOpen; deleteMessage = ''; deletePassword = ''"
                     >
@@ -411,25 +384,20 @@ onMounted(() => {
                     @submit.prevent="deleteAccount"
                 >
                     <div>
-                        <label
-                            for="delete-password"
-                            class="mb-2 block text-sm font-semibold text-charcoal-brown"
-                        >
-                            Potwierdź hasłem
-                        </label>
+                        <label for="delete-password" class="label">Potwierdź hasłem</label>
                         <input
                             id="delete-password"
                             v-model="deletePassword"
                             type="password"
                             autocomplete="current-password"
                             required
-                            class="w-full rounded-lg border border-silver bg-floral-white px-4 py-3 text-charcoal-brown outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                            class="input focus:border-red-700 focus:ring-red-700/20"
                         />
                     </div>
 
                     <p
                         v-if="deleteMessage"
-                        class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                        class="alert alert-error"
                         role="alert"
                     >
                         {{ deleteMessage }}
@@ -438,12 +406,12 @@ onMounted(() => {
                     <button
                         type="submit"
                         :disabled="isDeletingAccount"
-                        class="inline-flex w-full items-center justify-center rounded-lg bg-red-600 px-5 py-3 font-semibold text-white transition-colors hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        class="btn btn-danger w-full sm:w-auto"
                     >
                         {{ isDeletingAccount ? 'Usuwanie...' : 'Potwierdź usunięcie konta' }}
                     </button>
                 </form>
             </section>
         </div>
-    </div>
+    </SidebarLayout>
 </template>

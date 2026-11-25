@@ -122,34 +122,36 @@ const stopSession = async () => {
 </script>
 
 <template>
-  <div class="flex flex-col items-center gap-4 p-5 w-full">
-    <h2 class="text-2xl font-bold text-charcoal-brown">Wirtualny Linux XFCE (KasmVNC)</h2>
+  <div class="flex w-full flex-col items-center gap-4 p-5">
+    <h2 class="section-title font-mono">Wirtualny Linux XFCE (KasmVNC)</h2>
 
     <div class="flex gap-4">
       <button
         v-if="!desktopUrl"
+        type="button"
         @click="startSession"
         :disabled="isLoading"
-        class="px-6 py-2 bg-spicy-paprika text-white rounded-md hover:bg-spicy-paprika/90 disabled:bg-charcoal-brown/40 font-bold shadow-md transition-colors"
+        class="btn btn-primary"
       >
         {{ isLoading ? 'Klonowanie systemu...' : 'Uruchom środowisko' }}
       </button>
 
       <button
         v-if="desktopUrl"
+        type="button"
         @click="stopSession"
-        class="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-bold shadow-md transition-colors"
+        class="btn btn-danger"
       >
         Zakończ sesję i usuń dane
       </button>
     </div>
 
-    <p v-if="errorMessage" role="alert" class="text-sm font-semibold text-red-700">{{ errorMessage }}</p>
+    <p v-if="errorMessage" role="alert" class="alert alert-error">{{ errorMessage }}</p>
 
-    <div v-if="desktopUrl" class="w-full h-[750px] border-4 border-slate-800 rounded-lg overflow-hidden shadow-2xl relative mt-4">
+    <div v-if="desktopUrl" class="relative mt-4 h-[750px] w-full overflow-hidden rounded-2xl border-4 border-carbon-black shadow-2xl">
       <iframe
         :src="desktopUrl"
-        class="w-full h-full border-none bg-black"
+        class="h-full w-full border-none bg-black"
         allow="clipboard-read; clipboard-write"
       ></iframe>
     </div>

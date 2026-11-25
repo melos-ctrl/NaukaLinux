@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import SidebarLayout from '@/components/SidebarLayout.vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -123,306 +125,290 @@ onMounted(fetchAll)
 </script>
 
 <template>
-  <div class="-m-4 flex min-h-0 flex-1 flex-col gap-4 md:h-full md:flex-row md:gap-4">
-    <aside
-      class="m-2 flex w-auto shrink-0 flex-col rounded-2xl border border-silver/20 bg-charcoal-brown text-floral-white shadow-lg md:w-64"
-    >
-      <section class="flex flex-col items-center border-b border-silver/20 p-6 text-center">
-        <div class="flex h-20 w-20 items-center justify-center rounded-full border-4 border-spicy-paprika bg-carbon-black text-3xl font-extrabold shadow-lg" aria-hidden="true">
-          A
-        </div>
-        <h2 class="mt-4 font-bold tracking-wide">Administracja</h2>
-        <p class="mt-1 text-sm text-silver">Panel administratora</p>
-      </section>
+  <SidebarLayout>
+    <template #profile>
+      <div class="flex h-20 w-20 items-center justify-center rounded-full border-4 border-spicy-paprika bg-carbon-black font-mono text-3xl font-bold shadow-lg" aria-hidden="true">
+        A
+      </div>
+      <h2 class="mt-2 font-bold">Administracja</h2>
+      <p class="text-sm text-silver">Panel administratora</p>
+    </template>
 
-      <nav class="flex flex-row gap-1 overflow-x-auto p-3 md:flex-col" aria-label="Nawigacja panelu administratora">
-        <button
-          type="button"
-          class="shrink-0 rounded-lg px-4 py-3 text-left font-medium transition-colors hover:bg-spicy-paprika hover:text-floral-white"
-          :class="activeTab === 'courses' ? 'bg-spicy-paprika text-floral-white' : 'text-silver'"
-          @click="activeTab = 'courses'"
-        >
-          Kursy na platformie
-        </button>
-        <router-link
-          to="/course-creator"
-          class="rounded-lg px-4 py-3 font-medium text-silver transition-colors hover:bg-spicy-paprika hover:text-floral-white"
-          active-class="bg-spicy-paprika text-floral-white"
-        >
-          + Kreator Kursów
+    <template #nav>
+      <button
+        type="button"
+        class="side-link shrink-0"
+        :class="{ 'side-link-active': activeTab === 'courses' }"
+        @click="activeTab = 'courses'"
+      >
+        Kursy na platformie
+      </button>
+      <router-link
+        to="/course-creator"
+        class="side-link shrink-0"
+        active-class="side-link-active"
+      >
+        + Kreator kursów
+      </router-link>
+      <button
+        type="button"
+        class="side-link shrink-0"
+        :class="{ 'side-link-active': activeTab === 'users' }"
+        @click="activeTab = 'users'"
+      >
+        Użytkownicy
+      </button>
+      <button
+        type="button"
+        class="side-link shrink-0"
+        :class="{ 'side-link-active': activeTab === 'results' }"
+        @click="activeTab = 'results'"
+      >
+        Wyniki uczestników
+      </button>
+      <button
+        type="button"
+        class="side-link shrink-0"
+        :class="{ 'side-link-active': activeTab === 'feedbacks' }"
+        @click="activeTab = 'feedbacks'"
+      >
+        Zgłoszenia i opinie
+      </button>
+      <button
+        type="button"
+        class="side-link shrink-0"
+        :class="{ 'side-link-active': activeTab === 'mentorApplications' }"
+        @click="activeTab = 'mentorApplications'"
+      >
+        Kandydaci na mentorów ({{ mentorApplications.length }})
+      </button>
+    </template>
+
+    <PageHeader
+      eyebrow="Strefa zarządzania"
+      title="Panel administratora"
+      lead="Zarządzaj kursami, zadaniami, użytkownikami i wynikami."
+    />
+
+    <!-- kursy -->
+    <section v-if="activeTab === 'courses'" class="space-y-6">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p class="text-sm text-muted">Katalog</p>
+          <h2 class="section-title">Wszystkie kursy</h2>
+        </div>
+        <router-link to="/course-creator" class="btn btn-primary">
+          + Dodaj nowy kurs w kreatorze
         </router-link>
-        <button
-          type="button"
-          class="shrink-0 rounded-lg px-4 py-3 text-left font-medium transition-colors hover:bg-spicy-paprika hover:text-floral-white"
-          :class="activeTab === 'users' ? 'bg-spicy-paprika text-floral-white' : 'text-silver'"
-          @click="activeTab = 'users'"
-        >
-          Użytkownicy
-        </button>
-        <button
-          type="button"
-          class="shrink-0 rounded-lg px-4 py-3 text-left font-medium transition-colors hover:bg-spicy-paprika hover:text-floral-white"
-          :class="activeTab === 'results' ? 'bg-spicy-paprika text-floral-white' : 'text-silver'"
-          @click="activeTab = 'results'"
-        >
-          Wyniki uczestników
-        </button>
-        <button
-          type="button"
-          class="shrink-0 rounded-lg px-4 py-3 text-left font-medium transition-colors hover:bg-spicy-paprika hover:text-floral-white"
-          :class="activeTab === 'feedbacks' ? 'bg-spicy-paprika text-floral-white' : 'text-silver'"
-          @click="activeTab = 'feedbacks'"
-        >
-          Zgłoszenia i opinie
-        </button>
-        <button
-          type="button"
-          class="shrink-0 rounded-lg px-4 py-3 text-left font-medium transition-colors hover:bg-spicy-paprika hover:text-floral-white"
-          :class="activeTab === 'mentorApplications' ? 'bg-spicy-paprika text-floral-white' : 'text-silver'"
-          @click="activeTab = 'mentorApplications'"
-        >
-          Kandydaci na mentorów ({{ mentorApplications.length }})
-        </button>
-      </nav>
-    </aside>
+      </div>
 
-    <main class="min-h-0 min-w-0 flex-1 space-y-8 overflow-y-auto p-5 md:p-8 lg:p-10">
-      <header>
-        <p class="text-sm font-semibold uppercase tracking-wider text-spicy-paprika">
-          Strefa zarządzania
-        </p>
-        <h1 class="mt-1 text-3xl font-bold text-charcoal-brown">Panel administratora</h1>
-        <p class="mt-2 text-charcoal-brown/70">
-          Zarządzaj kursami, zadaniami, użytkownikami i wynikami.
-        </p>
-      </header>
-
-      <!-- kursy -->
-      <section v-if="activeTab === 'courses'" class="space-y-6">
-        <div class="flex justify-between items-center">
-          <div>
-            <p class="text-sm font-medium text-silver">Katalog</p>
-            <h2 class="text-xl font-bold text-charcoal-brown">Wszystkie kursy</h2>
+      <div v-if="courses.length" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <article v-for="course in courses" :key="course.id" class="card flex min-h-48 flex-col md:p-5">
+          <span class="badge mb-3" :class="course.isPublished ? 'badge-success' : 'badge-warning'">
+            {{ course.isPublished ? 'Opublikowany' : 'Szkic' }}
+          </span>
+          <h3 class="text-lg font-bold">{{ course.title }}</h3>
+          <p class="mt-2 flex-1 text-sm leading-relaxed text-muted">{{ course.description }}</p>
+          <span class="mt-4 text-xs font-medium text-muted">Lekcji w kursie: {{ course.lessonCount ?? 0 }}</span>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <button type="button" class="btn btn-dark btn-sm" @click="editCourse(course.id)">
+              Edytuj kurs i zadania
+            </button>
+            <button type="button" class="btn btn-danger btn-sm" @click="deleteCourse(course.id)">
+              Usuń
+            </button>
           </div>
-          <router-link
-            to="/course-creator"
-            class="rounded-lg bg-spicy-paprika px-5 py-2.5 font-semibold text-white transition-colors hover:opacity-90"
-          >
-            + Dodaj nowy kurs w kreatorze
-          </router-link>
-        </div>
+        </article>
+      </div>
+      <p v-else class="empty-state">
+        Nie ma jeszcze żadnych kursów.
+      </p>
+    </section>
 
-        <div v-if="courses.length" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <article v-for="course in courses" :key="course.id" class="flex min-h-48 flex-col rounded-xl border border-silver/50 bg-white p-5 shadow-sm">
-            <span class="mb-3 w-fit rounded-full bg-spicy-paprika/10 px-3 py-1 text-xs font-semibold text-spicy-paprika">
-              {{ course.isPublished ? 'Opublikowany' : 'Szkic' }}
-            </span>
-            <h3 class="text-lg font-bold text-charcoal-brown">{{ course.title }}</h3>
-            <p class="mt-2 flex-1 text-sm leading-relaxed text-charcoal-brown/70">{{ course.description }}</p>
-            <span class="mt-4 text-xs font-medium text-sage">Lekcji w kursie: {{ course.lessonCount ?? 0 }}</span>
-            <div class="mt-4 flex flex-wrap gap-2">
-              <button type="button" class="rounded-lg bg-charcoal-brown px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-spicy-paprika" @click="editCourse(course.id)">
-                Edytuj kurs i zadania
-              </button>
-              <button type="button" class="rounded-lg border border-silver/70 px-3 py-2 text-sm font-medium text-charcoal-brown transition-colors hover:border-red-500 hover:text-red-700" @click="deleteCourse(course.id)">
-                Usuń
-              </button>
-            </div>
-          </article>
-        </div>
-        <p v-else class="rounded-xl border border-silver/50 bg-white p-6 text-charcoal-brown/70 shadow-sm">
-          Nie ma jeszcze żadnych kursów.
-        </p>
-      </section>
-
-      <!-- użytkownicy -->
-      <section v-if="activeTab === 'users'" class="space-y-4">
-        <div>
-          <p class="text-sm font-medium text-silver">Konta</p>
-          <h2 class="text-xl font-bold text-charcoal-brown">Użytkownicy</h2>
-        </div>
-        <p v-if="usersError" role="alert" class="text-sm font-semibold text-red-700">{{ usersError }}</p>
-        <div v-if="users.length" class="overflow-x-auto rounded-xl border border-silver/50 bg-white shadow-sm">
-          <table class="w-full min-w-[600px] border-collapse text-left">
-            <thead class="bg-floral-white text-sm text-charcoal-brown/70">
-              <tr>
-                <th class="px-5 py-4 font-semibold">ID</th>
-                <th class="px-5 py-4 font-semibold">Nazwa</th>
-                <th class="px-5 py-4 font-semibold">Email</th>
-                <th class="px-5 py-4 font-semibold">Rola</th>
-                <th class="px-5 py-4 font-semibold">Akcje</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-silver/40 text-charcoal-brown">
-              <tr v-for="user in users" :key="user.id">
-                <td class="px-5 py-4">{{ user.id }}</td>
-                <td class="px-5 py-4 font-medium">{{ user.username }}</td>
-                <td class="px-5 py-4">{{ user.email }}</td>
-                <td class="px-5 py-4">
-                  <span class="rounded-full bg-spicy-paprika/10 px-3 py-1 text-xs font-semibold text-spicy-paprika">{{ user.role }}</span>
-                </td>
-                <td class="px-5 py-4">
-                  <div class="flex flex-wrap gap-2">
-                    <select
-                      :value="user.role"
-                      aria-label="Zmień rolę użytkownika"
-                      class="rounded-lg border border-silver/70 bg-floral-white px-3 py-2 text-sm font-medium text-charcoal-brown focus-visible:outline-2 focus-visible:outline-spicy-paprika"
-                      @change="changeRole(user, $event)"
-                    >
-                      <option value="User">Użytkownik</option>
-                      <option value="Mentor">Mentor</option>
-                      <option value="Admin">Administrator</option>
-                    </select>
-                    <button type="button" class="rounded-lg border border-silver/70 px-3 py-2 text-sm font-medium text-charcoal-brown transition-colors hover:border-red-500 hover:text-red-700" @click="deleteUser(user.id)">Usuń</button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p v-else class="rounded-xl border border-silver/50 bg-white p-6 text-charcoal-brown/70 shadow-sm">
-          Nie znaleziono użytkowników.
-        </p>
-      </section>
-
-      <!-- ZAKŁADKA: WYNIKI UCZESTNIKÓW -->
-      <section v-if="activeTab === 'results'" class="space-y-4">
-        <div>
-          <p class="text-sm font-medium text-silver">Postępy</p>
-          <h2 class="text-xl font-bold text-charcoal-brown">Wyniki uczestników</h2>
-        </div>
-        <div v-if="results.length" class="overflow-x-auto rounded-xl border border-silver/50 bg-white shadow-sm">
-          <table class="w-full min-w-[700px] border-collapse text-left">
-            <thead class="bg-floral-white text-sm text-charcoal-brown/70">
-              <tr>
-                <th class="px-5 py-4 font-semibold">Uczestnik</th>
-                <th class="px-5 py-4 font-semibold">Kurs</th>
-                <th class="px-5 py-4 font-semibold">Ukończona lekcja</th>
-                <th class="px-5 py-4 font-semibold">Wynik</th>
-                <th class="px-5 py-4 font-semibold">Ostatnia aktywność</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-silver/40 text-charcoal-brown">
-              <tr v-for="result in results" :key="result.id">
-                <td class="px-5 py-4">{{ result.username }} ({{ result.email }})</td>
-                <td class="px-5 py-4 font-medium">{{ result.courseTitle }}</td>
-                <td class="px-5 py-4">
-                  <template v-if="result.lastCompletedLessonId > 0">
-                    <div>{{ result.completedLessonTitle || `Etap ${result.lastCompletedLessonId}` }}</div>
-                    <div v-if="result.completedModuleTitle" class="mt-1 text-xs text-silver">{{ result.completedModuleTitle }}</div>
-                  </template>
-                  <span v-else class="text-silver">Nie rozpoczęto</span>
-                </td>
-                <td class="px-5 py-4 font-bold text-sage">{{ result.score }} pkt</td>
-                <td class="px-5 py-4">{{ new Date(result.updatedAt).toLocaleString() }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p v-else class="rounded-xl border border-silver/50 bg-white p-6 text-charcoal-brown/70 shadow-sm">
-          Nie ma jeszcze wyników do wyświetlenia.
-        </p>
-      </section>
-
-      <!-- zgłaszane błędy pojawią się tutaj -->
-      <section v-if="activeTab === 'feedbacks'" class="space-y-4">
-        <div>
-          <p class="text-sm font-medium text-silver">Kontakt od kursantów</p>
-          <h2 class="text-xl font-bold text-charcoal-brown">Zgłoszone błędy i opinie</h2>
-        </div>
-        <div v-if="feedbacks.length" class="overflow-x-auto rounded-xl border border-silver/50 bg-white shadow-sm">
-          <table class="w-full min-w-[700px] border-collapse text-left">
-            <thead class="bg-floral-white text-sm text-charcoal-brown/70">
-              <tr>
-                <th class="px-5 py-4 font-semibold">Użytkownik</th>
-                <th class="px-5 py-4 font-semibold">Typ</th>
-                <th class="px-5 py-4 font-semibold">Treść wiadomości</th>
-                <th class="px-5 py-4 font-semibold">Data</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-silver/40 text-charcoal-brown">
-              <tr v-for="fb in feedbacks" :key="fb.id">
-                <td class="px-5 py-4 font-medium">{{ fb.username }}</td>
-                <td class="px-5 py-4">
-                  <span
-                    class="rounded-full px-3 py-1 text-xs font-semibold"
-                    :class="fb.lessonBlockId ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'"
+    <!-- użytkownicy -->
+    <section v-if="activeTab === 'users'" class="space-y-4">
+      <div>
+        <p class="text-sm text-muted">Konta</p>
+        <h2 class="section-title">Użytkownicy</h2>
+      </div>
+      <p v-if="usersError" role="alert" class="alert alert-error">{{ usersError }}</p>
+      <div v-if="users.length" class="table-wrap">
+        <table class="table min-w-[600px]">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nazwa</th>
+              <th>Email</th>
+              <th>Rola</th>
+              <th>Akcje</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="user in users" :key="user.id">
+              <td>{{ user.id }}</td>
+              <td class="font-medium">{{ user.username }}</td>
+              <td>{{ user.email }}</td>
+              <td>
+                <span class="badge badge-primary">{{ user.role }}</span>
+              </td>
+              <td>
+                <div class="flex flex-wrap gap-2">
+                  <select
+                    :value="user.role"
+                    aria-label="Zmień rolę użytkownika"
+                    class="input h-9 w-auto text-sm"
+                    @change="changeRole(user, $event)"
                   >
-                    {{ fb.type }}
-                  </span>
-                </td>
-                <td class="px-5 py-4">{{ fb.message }}</td>
-                <td class="px-5 py-4 text-sm text-charcoal-brown/70">{{ new Date(fb.createdAt).toLocaleString() }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p v-else class="rounded-xl border border-silver/50 bg-white p-6 text-charcoal-brown/70 shadow-sm">
-          Brak zgłoszeń i opinii.
-        </p>
-      </section>
+                    <option value="User">Użytkownik</option>
+                    <option value="Mentor">Mentor</option>
+                    <option value="Admin">Administrator</option>
+                  </select>
+                  <button type="button" class="btn btn-danger btn-sm" @click="deleteUser(user.id)">Usuń</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-else class="empty-state">
+        Nie znaleziono użytkowników.
+      </p>
+    </section>
 
-      <section v-if="activeTab === 'mentorApplications'" class="space-y-4">
-        <div>
-          <p class="text-sm font-medium text-silver">Zgłoszenia</p>
-          <h2 class="text-xl font-bold text-charcoal-brown">Kandydaci na mentorów</h2>
-        </div>
-        <p v-if="reviewError" role="alert" class="text-sm font-semibold text-red-700">{{ reviewError }}</p>
-        <p v-if="mentorApplicationsError" role="alert" class="rounded-lg border border-red-300 bg-red-50 p-4 text-sm font-semibold text-red-800">
-          {{ mentorApplicationsError }} Sprawdź logowanie administratora i odpowiedź żądania <code>/api/admin/mentor-applications</code> w Network.
-        </p>
-        <div v-else-if="mentorApplications.length" class="overflow-x-auto rounded-xl border border-silver/50 bg-white shadow-sm">
-          <table class="w-full min-w-[900px] border-collapse text-left">
-            <thead class="bg-floral-white text-sm text-charcoal-brown/70">
-              <tr>
-                <th class="px-5 py-4 font-semibold">Kandydat</th>
-                <th class="px-5 py-4 font-semibold">Doświadczenie</th>
-                <th class="px-5 py-4 font-semibold">Portfolio</th>
-                <th class="px-5 py-4 font-semibold">Status</th>
-                <th class="px-5 py-4 font-semibold">Data zgłoszenia</th>
-                <th class="px-5 py-4 font-semibold">Decyzja</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-silver/40 text-charcoal-brown">
-              <tr v-for="application in mentorApplications" :key="application.id" class="align-top">
-                <td class="px-5 py-4">
-                  <p class="font-semibold">{{ application.firstName }} {{ application.lastName }}</p>
-                  <p class="mt-1 text-sm">{{ application.username }} · {{ application.email }}</p>
-                </td>
-                <td class="max-w-lg whitespace-pre-wrap px-5 py-4 text-sm">{{ application.experience }}</td>
-                <td class="px-5 py-4">
-                  <a v-if="application.portfolioUrl" :href="application.portfolioUrl" target="_blank" rel="noopener noreferrer" class="font-medium text-spicy-paprika underline">Otwórz portfolio</a>
-                  <span v-else class="text-silver">Brak</span>
-                </td>
-                <td class="px-5 py-4">
-                  <span class="rounded-full bg-sky-blue/10 px-3 py-1 text-xs font-semibold text-sky-blue">{{ application.status === 'Pending' ? 'Oczekuje' : application.status }}</span>
-                </td>
-                <td class="whitespace-nowrap px-5 py-4 text-sm">{{ new Date(application.submittedAt).toLocaleString() }}</td>
-                <td class="px-5 py-4">
-                  <div v-if="application.status === 'Pending'" class="flex gap-2">
-                    <button
-                      type="button"
-                      :disabled="reviewingApplicationId === application.id"
-                      class="rounded-md bg-green-700 px-3 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50"
-                      @click="reviewMentorApplication(application.id, 'Approved')"
-                    >Zatwierdź</button>
-                    <button
-                      type="button"
-                      :disabled="reviewingApplicationId === application.id"
-                      class="rounded-md border border-red-700 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-                      @click="reviewMentorApplication(application.id, 'Rejected')"
-                    >Odrzuć</button>
-                  </div>
-                  <span v-else class="text-sm text-silver">Rozpatrzono</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p v-else-if="!mentorApplicationsError" class="rounded-xl border border-silver/50 bg-white p-6 text-charcoal-brown/70 shadow-sm">
-          Nie ma jeszcze zgłoszeń na mentora.
-        </p>
-      </section>
-    </main>
-  </div>
+    <!-- ZAKŁADKA: WYNIKI UCZESTNIKÓW -->
+    <section v-if="activeTab === 'results'" class="space-y-4">
+      <div>
+        <p class="text-sm text-muted">Postępy</p>
+        <h2 class="section-title">Wyniki uczestników</h2>
+      </div>
+      <div v-if="results.length" class="table-wrap">
+        <table class="table min-w-[700px]">
+          <thead>
+            <tr>
+              <th>Uczestnik</th>
+              <th>Kurs</th>
+              <th>Ukończona lekcja</th>
+              <th>Wynik</th>
+              <th>Ostatnia aktywność</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="result in results" :key="result.id">
+              <td>{{ result.username }} ({{ result.email }})</td>
+              <td class="font-medium">{{ result.courseTitle }}</td>
+              <td>
+                <template v-if="result.lastCompletedLessonId > 0">
+                  <div>{{ result.completedLessonTitle || `Etap ${result.lastCompletedLessonId}` }}</div>
+                  <div v-if="result.completedModuleTitle" class="mt-1 text-xs text-muted">{{ result.completedModuleTitle }}</div>
+                </template>
+                <span v-else class="text-muted">Nie rozpoczęto</span>
+              </td>
+              <td class="font-bold text-green-700">{{ result.score }} pkt</td>
+              <td class="text-sm text-muted">{{ new Date(result.updatedAt).toLocaleString() }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-else class="empty-state">
+        Nie ma jeszcze wyników do wyświetlenia.
+      </p>
+    </section>
+
+    <!-- zgłaszane błędy pojawią się tutaj -->
+    <section v-if="activeTab === 'feedbacks'" class="space-y-4">
+      <div>
+        <p class="text-sm text-muted">Kontakt od kursantów</p>
+        <h2 class="section-title">Zgłoszone błędy i opinie</h2>
+      </div>
+      <div v-if="feedbacks.length" class="table-wrap">
+        <table class="table min-w-[700px]">
+          <thead>
+            <tr>
+              <th>Użytkownik</th>
+              <th>Typ</th>
+              <th>Treść wiadomości</th>
+              <th>Data</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="fb in feedbacks" :key="fb.id">
+              <td class="font-medium">{{ fb.username }}</td>
+              <td>
+                <span class="badge" :class="fb.lessonBlockId ? 'badge-danger' : 'badge-info'">
+                  {{ fb.type }}
+                </span>
+              </td>
+              <td>{{ fb.message }}</td>
+              <td class="text-sm text-muted">{{ new Date(fb.createdAt).toLocaleString() }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-else class="empty-state">
+        Brak zgłoszeń i opinii.
+      </p>
+    </section>
+
+    <section v-if="activeTab === 'mentorApplications'" class="space-y-4">
+      <div>
+        <p class="text-sm text-muted">Zgłoszenia</p>
+        <h2 class="section-title">Kandydaci na mentorów</h2>
+      </div>
+      <p v-if="reviewError" role="alert" class="alert alert-error">{{ reviewError }}</p>
+      <p v-if="mentorApplicationsError" role="alert" class="alert alert-error">
+        {{ mentorApplicationsError }} Sprawdź logowanie administratora i odpowiedź żądania <code class="font-mono">/api/admin/mentor-applications</code> w Network.
+      </p>
+      <div v-else-if="mentorApplications.length" class="table-wrap">
+        <table class="table min-w-[900px]">
+          <thead>
+            <tr>
+              <th>Kandydat</th>
+              <th>Doświadczenie</th>
+              <th>Portfolio</th>
+              <th>Status</th>
+              <th>Data zgłoszenia</th>
+              <th>Decyzja</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="application in mentorApplications" :key="application.id" class="align-top">
+              <td>
+                <p class="font-semibold">{{ application.firstName }} {{ application.lastName }}</p>
+                <p class="mt-1 text-sm text-muted">{{ application.username }} · {{ application.email }}</p>
+              </td>
+              <td class="max-w-lg whitespace-pre-wrap text-sm">{{ application.experience }}</td>
+              <td>
+                <a v-if="application.portfolioUrl" :href="application.portfolioUrl" target="_blank" rel="noopener noreferrer" class="font-medium text-paprika-600 underline">Otwórz portfolio</a>
+                <span v-else class="text-muted">Brak</span>
+              </td>
+              <td>
+                <span class="badge badge-info">{{ application.status === 'Pending' ? 'Oczekuje' : application.status }}</span>
+              </td>
+              <td class="whitespace-nowrap text-sm">{{ new Date(application.submittedAt).toLocaleString() }}</td>
+              <td>
+                <div v-if="application.status === 'Pending'" class="flex gap-2">
+                  <button
+                    type="button"
+                    :disabled="reviewingApplicationId === application.id"
+                    class="btn btn-success btn-sm"
+                    @click="reviewMentorApplication(application.id, 'Approved')"
+                  >Zatwierdź</button>
+                  <button
+                    type="button"
+                    :disabled="reviewingApplicationId === application.id"
+                    class="btn btn-danger btn-sm"
+                    @click="reviewMentorApplication(application.id, 'Rejected')"
+                  >Odrzuć</button>
+                </div>
+                <span v-else class="text-sm text-muted">Rozpatrzono</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-else-if="!mentorApplicationsError" class="empty-state">
+        Nie ma jeszcze zgłoszeń na mentora.
+      </p>
+    </section>
+  </SidebarLayout>
 </template>

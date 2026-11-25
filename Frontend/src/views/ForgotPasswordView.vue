@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import AuthCard from '@/components/AuthCard.vue'
 
 const email = ref('')
 const message = ref('')
@@ -8,7 +9,7 @@ const isLoading = ref(false)
 const submitRequest = async () => {
     isLoading.value = true
     message.value = ''
-    
+
     try {
         const response = await fetch('/api/auth/forgot-password', {
             method: 'POST',
@@ -31,35 +32,22 @@ const submitRequest = async () => {
 </script>
 
 <template>
-  <div class="flex flex-col items-center justify-center h-screen">
-    <div class="bg-carbon-black p-8 rounded shadow flex flex-col items-center w-full max-w-sm">
-      <h1 class="text-3xl font-bold text-floral-white mb-2">Odzyskaj hasło</h1>
-      <p class="text-silver text-sm mb-6 text-center">Podaj swój e-mail, a wyślemy Ci link do zmiany hasła.</p>
+  <AuthCard eyebrow="Reset hasła" title="Odzyskaj hasło" lead="Podaj swój e-mail, a wyślemy Ci link do zmiany hasła.">
+    <form @submit.prevent="submitRequest" class="space-y-4">
+      <div>
+        <label for="email" class="label">Adres e-mail</label>
+        <input v-model="email" class="input" type="email" id="email" autocomplete="email" required>
+      </div>
 
-      <form @submit.prevent="submitRequest" class="flex flex-col w-full gap-2">
-        <label for="email" class="text-floral-white">Adres e-mail</label>
-        <input 
-          v-model="email" 
-          class="bg-carbon-black border border-silver rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-spicy-paprika text-floral-white" 
-          type="email" 
-          id="email" 
-          required
-        >
+      <p v-if="message" class="alert alert-info" role="status">{{ message }}</p>
 
-        <button 
-          type="submit" 
-          :disabled="isLoading"
-          class="bg-spicy-paprika text-floral-white px-4 py-2 rounded mt-4 hover:bg-floral-white hover:text-charcoal-brown transition disabled:opacity-50"
-        >
-          {{ isLoading ? 'Wysyłanie...' : 'Wyślij link' }}
-        </button>
-      </form>
+      <button type="submit" :disabled="isLoading" class="btn btn-primary w-full">
+        {{ isLoading ? 'Wysyłanie...' : 'Wyślij link' }}
+      </button>
+    </form>
 
-      <p v-if="message" class="mt-4 text-center font-bold text-floral-white text-sm">{{ message }}</p>
-
-      <span class="mt-4 text-sm text-floral-white">
-        <router-link to="/login" class="text-spicy-paprika hover:underline">Wróć do logowania</router-link>
-      </span>
-    </div>
-  </div>
+    <template #footer>
+      <router-link to="/login" class="font-semibold text-paprika-600 hover:underline">← Wróć do logowania</router-link>
+    </template>
+  </AuthCard>
 </template>

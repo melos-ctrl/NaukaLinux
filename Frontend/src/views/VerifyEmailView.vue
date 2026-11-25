@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import AuthCard from '@/components/AuthCard.vue'
 
 const route = useRoute()
 const token = typeof route.query.token === 'string' ? route.query.token : ''
@@ -61,38 +62,38 @@ const resendVerification = async () => {
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col items-center justify-center px-4">
-    <div class="flex w-full max-w-md flex-col items-center rounded bg-carbon-black p-8 shadow">
-      <h1 class="text-3xl font-bold text-floral-white">
-        {{ token ? 'Potwierdzenie adresu' : 'Wyślij link ponownie' }}
-      </h1>
+  <AuthCard
+    eyebrow="Adres e-mail"
+    :title="token ? 'Potwierdzenie adresu' : 'Wyślij link ponownie'"
+  >
+    <p
+      v-if="message"
+      class="alert"
+      :class="verified ? 'alert-success' : 'alert-info'"
+      role="status"
+    >
+      {{ message }}
+    </p>
 
-      <p v-if="message" class="mt-4 text-center" :class="verified ? 'text-emerald-400' : 'text-floral-white'">
-        {{ message }}
-      </p>
-
-      <form v-if="!verified" class="mt-5 flex w-full flex-col gap-3" @submit.prevent="resendVerification">
-        <label for="email" class="text-floral-white">E-mail</label>
+    <form v-if="!verified" class="space-y-4" @submit.prevent="resendVerification">
+      <div>
+        <label for="email" class="label">E-mail</label>
         <input
           id="email"
           v-model="email"
-          class="rounded border border-silver bg-carbon-black px-4 py-2 text-floral-white focus:outline-none focus:ring-2 focus:ring-spicy-paprika"
+          class="input"
           type="email"
           autocomplete="email"
           required
         >
-        <button
-          type="submit"
-          :disabled="sending"
-          class="mt-2 rounded bg-spicy-paprika px-4 py-2 text-floral-white transition hover:opacity-90 disabled:opacity-60"
-        >
-          {{ sending ? 'Wysyłanie...' : 'Wyślij link weryfikacyjny' }}
-        </button>
-      </form>
+      </div>
+      <button type="submit" :disabled="sending" class="btn btn-primary w-full">
+        {{ sending ? 'Wysyłanie...' : 'Wyślij link weryfikacyjny' }}
+      </button>
+    </form>
 
-      <router-link to="/login" class="mt-5 text-spicy-paprika hover:underline">
-        Przejdź do logowania
-      </router-link>
-    </div>
-  </div>
+    <template #footer>
+      <router-link to="/login" class="font-semibold text-paprika-600 hover:underline">Przejdź do logowania</router-link>
+    </template>
+  </AuthCard>
 </template>
