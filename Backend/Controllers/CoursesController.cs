@@ -470,10 +470,16 @@ public class CoursesController : ControllerBase
             }).ToList();
             var respondentCount = blockAnswers.Select(answer => answer.UserId).Distinct().Count();
 
+            var isTextQuestion = block.QuestionType == QuestionType.TextAnswer;
+
             var options = block.Options.OrderBy(option => option.Id).Select(option =>
             {
+                // Przy pytaniu tekstowym kursant nic nie zaznacza, tylko wpisuje tekst - liczymy więc,
+                // ile wpisanych odpowiedzi pasuje do tej akceptowanej (tak samo jak przy ocenianiu).
                 var selected = decodedAnswers
-                    .Where(item => item.OptionIds.Contains(option.Id))
+                    .Where(item => isTextQuestion
+                        ? AnswerEvaluator.TextMatches(option.OptionText, item.Answer.TextAnswer)
+                        : item.OptionIds.Contains(option.Id))
                     .GroupBy(item => item.Answer.UserId)
                     .Select(group => group.First().Answer)
                     .ToList();
@@ -493,7 +499,8 @@ public class CoursesController : ControllerBase
 
             var textAnswers = decodedAnswers
                 .Where(item => !string.IsNullOrWhiteSpace(item.Answer.TextAnswer))
-                .GroupBy(item => item.Answer.TextAnswer!.Trim(), StringComparer.OrdinalIgnoreCase)
+                // "uname -s" i "uname -S" to osobne odpowiedzi - grupujemy z rozróżnianiem wielkości liter
+                .GroupBy(item => AnswerEvaluator.NormalizeTextAnswer(item.Answer.TextAnswer), StringComparer.Ordinal)
                 .Select(group =>
                 {
                     var selected = group
@@ -503,7 +510,9 @@ public class CoursesController : ControllerBase
 
                     return new
                     {
-                        AnswerText = group.First().Answer.TextAnswer!.Trim(),
+                        AnswerText = group.Key,
+                        IsCorrect = block.Options.Any(option =>
+                            option.IsCorrect && AnswerEvaluator.TextMatches(option.OptionText, group.Key)),
                         SelectionCount = selected.Count,
                         Percentage = respondentCount == 0 ? 0 : Math.Round(selected.Count * 100d / respondentCount, 1),
                         Students = selected

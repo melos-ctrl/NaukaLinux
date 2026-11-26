@@ -44,6 +44,7 @@ interface QuestionStatistics {
   }>;
   textAnswers: Array<{
     answerText: string;
+    isCorrect: boolean;
     selectionCount: number;
     percentage: number;
     students: string[];
@@ -426,6 +427,7 @@ onMounted(() => {
               </div>
 
               <div v-if="question.options.length" class="mt-5 space-y-4">
+                <h4 v-if="question.questionType === 'TextAnswer'" class="text-sm font-bold">Akceptowane odpowiedzi</h4>
                 <div v-for="option in question.options" :key="option.optionId" class="space-y-1.5">
                   <div class="flex flex-wrap justify-between gap-2 text-sm">
                     <span class="font-medium">{{ option.optionText }}</span>
@@ -440,16 +442,22 @@ onMounted(() => {
                     ></div>
                   </div>
                   <p class="break-words text-sm text-muted">
-                    Wybrali: {{ option.students.length ? option.students.join(', ') : 'nikt' }}
+                    {{ question.questionType === 'TextAnswer' ? 'Wpisali' : 'Wybrali' }}:
+                    {{ option.students.length ? option.students.join(', ') : 'nikt' }}
                   </p>
                 </div>
               </div>
 
               <div v-if="question.textAnswers.length" class="mt-5 space-y-3">
-                <h4 class="text-sm font-bold">Odpowiedzi tekstowe</h4>
+                <h4 class="text-sm font-bold">Wszystkie wpisane odpowiedzi</h4>
                 <div v-for="answer in question.textAnswers" :key="answer.answerText" class="rounded-lg bg-floral-white p-3">
                   <div class="flex flex-wrap justify-between gap-2 text-sm">
-                    <span class="break-words font-medium">{{ answer.answerText }}</span>
+                    <span class="flex flex-wrap items-center gap-2">
+                      <span class="break-words font-mono font-medium">{{ answer.answerText }}</span>
+                      <span :class="answer.isCorrect ? 'badge badge-success' : 'badge badge-danger'">
+                        {{ answer.isCorrect ? 'poprawna' : 'błędna' }}
+                      </span>
+                    </span>
                     <span class="shrink-0 font-semibold">
                       {{ answer.percentage }}% ({{ answer.selectionCount }})
                     </span>

@@ -9,6 +9,20 @@ public static class AnswerEvaluator
 
     public static bool IsQuestion(LessonBlock block) => block.QuestionText != null;
 
+    /// <summary>
+    /// Ujednolica odpowiedź tekstową: obcina spacje na brzegach i zamienia wielokrotne spacje/tabulatory na jedną
+    /// ("uname   -s " -> "uname -s"). Wielkość liter zostaje - w Linuksie "uname -s" i "uname -S" to różne polecenia.
+    /// </summary>
+    public static string NormalizeTextAnswer(string? text) =>
+        string.Join(' ', (text ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    /// <summary>Czy wpisana odpowiedź pasuje do akceptowanej (z rozróżnianiem wielkości liter).</summary>
+    public static bool TextMatches(string? acceptedAnswer, string? textAnswer)
+    {
+        var answer = NormalizeTextAnswer(textAnswer);
+        return answer.Length > 0 && string.Equals(NormalizeTextAnswer(acceptedAnswer), answer, StringComparison.Ordinal);
+    }
+
     public static bool Evaluate(LessonBlock block, IReadOnlyCollection<int>? optionIds, string? textAnswer)
     {
         switch (block.QuestionType)
@@ -27,10 +41,7 @@ public static class AnswerEvaluator
             }
             case QuestionType.TextAnswer:
             {
-                if (string.IsNullOrWhiteSpace(textAnswer)) return false;
-                var answer = textAnswer.Trim();
-                return block.Options.Any(option => option.IsCorrect &&
-                    string.Equals(option.OptionText.Trim(), answer, StringComparison.OrdinalIgnoreCase));
+                return block.Options.Any(option => option.IsCorrect && TextMatches(option.OptionText, textAnswer));
             }
             default:
                 return false;
