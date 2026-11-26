@@ -5,6 +5,19 @@ import vueJsx from '@vitejs/plugin-vue-jsx'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import tailwindcss from '@tailwindcss/vite'
 
+// Pulpity kursantów: /desktop/3101/ -> 127.0.0.1:3101, /desktop/3102/ -> 127.0.0.1:3102 itd.
+// (na produkcji robi to nginx). 20 portów z zapasem - backend przydziela 3101..3100+MaxContainers.
+const desktopProxies = Object.fromEntries(
+  Array.from({ length: 20 }, (_, i) => 3101 + i).map((port) => [
+    `/desktop/${port}/`,
+    {
+      target: `http://127.0.0.1:${port}`,
+      changeOrigin: true,
+      ws: true, // KasmVNC przesyła obraz przez WebSocket
+    },
+  ]),
+)
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -35,18 +48,7 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      // Pulpity kursantów: /desktop/3101/... -> kontener na 127.0.0.1:3101 (na produkcji robi to nginx)
-      '^/desktop/\\d+/': {
-        target: 'http://127.0.0.1:3101', // domyślny - właściwy port wybiera router poniżej
-        changeOrigin: true,
-        ws: true, // KasmVNC przesyła obraz przez WebSocket
-        router: (req) => {
-          const match = req.url?.match(/^\/desktop\/(\d+)\//)
-          return match ? `http://127.0.0.1:${match[1]}` : undefined
-        },
-      },
+      ...desktopProxies,
     }
   }
 })
-
-// dodanie proxy pozwala mi pisanie w kodzie frontendu np. fetch('/api/endpoint') zamiast fetch('http://localhost:5042/api/endpoint') co pozwala na łatwiejsze przełączanie się między środowiskiem deweloperskim a produkcyjnym.
