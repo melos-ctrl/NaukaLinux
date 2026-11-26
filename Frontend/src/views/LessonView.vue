@@ -526,7 +526,7 @@ onMounted(() => {
             <!-- Akcje -->
             <section class="flex flex-col gap-3 sm:flex-row">
               <button type="button" @click="openFeedbackModal(null)" class="btn btn-outline-dark flex-1">
-                ✉ Uwagi dla mentora
+                Uwagi dla mentora
               </button>
               <button type="button" @click="reviewCourseFromStart" class="btn btn-outline-dark flex-1">
                 Przejrzyj kurs od początku

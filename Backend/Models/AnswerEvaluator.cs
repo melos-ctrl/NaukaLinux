@@ -8,11 +8,6 @@ public static class AnswerEvaluator
 
 
     public static bool IsQuestion(LessonBlock block) => block.QuestionText != null;
-
-    /// <summary>
-    /// Ujednolica odpowiedź tekstową: obcina spacje na brzegach i zamienia wielokrotne spacje/tabulatory na jedną
-    /// ("uname   -s " -> "uname -s"). Wielkość liter zostaje - w Linuksie "uname -s" i "uname -S" to różne polecenia.
-    /// </summary>
     public static string NormalizeTextAnswer(string? text) =>
         string.Join(' ', (text ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
