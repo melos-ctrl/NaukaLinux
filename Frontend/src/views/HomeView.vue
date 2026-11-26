@@ -78,7 +78,7 @@
         </div>
         <div class="flex flex-wrap justify-center gap-6 font-semibold">
           <a href="#" class="nav-link">O nas</a>
-          <a href="#" class="nav-link">Kontakt</a>
+          <a href="mailto:naukalinux@int.pl" class="nav-link">Kontakt</a>
           <a href="#" class="nav-link">Regulamin</a>
           <a href="#" class="nav-link">Polityka prywatności</a>
         </div>
