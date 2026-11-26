@@ -117,6 +117,9 @@ const feedbackError = ref('');
 const isReviewsModalOpen = ref(false);
 
 const currentTask = computed(() => tasks.value[currentStepIndex.value]);
+
+const LESSON_PREFIX = /^\s*lekcja\s*\d+\s*[:.\-–—)]?\s*/i;
+const displayLessonTitle = (title: string) => title.replace(LESSON_PREFIX, '').trim() || title;
 const progressPercentage = computed(() =>
   tasks.value.length > 0 ? ((currentStepIndex.value + 1) / tasks.value.length) * 100 : 0
 );
@@ -544,14 +547,14 @@ onMounted(() => {
                   {{ courseTitle }}
                 </div>
                 <div v-if="currentTask.moduleTitle" class="text-xs font-semibold uppercase text-silver">{{ currentTask.moduleTitle }}</div>
-                <h2 class="line-clamp-2 text-xl font-bold text-floral-white">Lekcja {{ currentStepIndex + 1 }}: {{ currentTask.lessonTitle }}</h2>
+                <h2 class="line-clamp-2 text-xl font-bold text-floral-white">Lekcja {{ currentStepIndex + 1 }}: {{ displayLessonTitle(currentTask.lessonTitle) }}</h2>
               </div>
               <div class="flex shrink-0 flex-col gap-2">
                 <button type="button" @click="isReviewsModalOpen = true" class="btn btn-outline-dark btn-sm">
                   ★ Oceń kurs
                 </button>
                 <button type="button" @click="openFeedbackModal(null)" class="btn btn-outline-dark btn-sm">
-                  ✉ Uwagi dla mentora
+                Uwagi dla mentora
                 </button>
                 <button type="button" @click="openSummary" class="btn btn-outline-dark btn-sm">
                   Podsumowanie
