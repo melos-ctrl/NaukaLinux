@@ -22,34 +22,6 @@ namespace Backend.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Backend.Models.ControlQuestion", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("LessonId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Order")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LessonId");
-
-                    b.ToTable("ControlQuestions");
-                });
-
             modelBuilder.Entity("Backend.Models.Course", b =>
                 {
                     b.Property<int>("Id")
@@ -101,6 +73,11 @@ namespace Backend.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("UserId", "CourseId")
+                        .IsUnique();
+
                     b.ToTable("CourseEnrollments");
                 });
 
@@ -129,6 +106,47 @@ namespace Backend.Migrations
                     b.ToTable("CourseModules");
                 });
 
+            modelBuilder.Entity("Backend.Models.CourseReview", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Comment")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("CourseId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("CourseReviews", t =>
+                        {
+                            t.HasCheckConstraint("CK_CourseReviews_Rating", "\"Rating\" BETWEEN 1 AND 5");
+                        });
+                });
+
             modelBuilder.Entity("Backend.Models.Feedback", b =>
                 {
                     b.Property<int>("Id")
@@ -154,6 +172,10 @@ namespace Backend.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("LessonBlockId");
 
                     b.HasIndex("UserId");
 
@@ -278,31 +300,6 @@ namespace Backend.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("MentorApplications");
-                });
-
-            modelBuilder.Entity("Backend.Models.QuestionOption", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ControlQuestionId")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsCorrect")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Text")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ControlQuestionId");
-
-                    b.ToTable("QuestionOptions");
                 });
 
             modelBuilder.Entity("Backend.Models.QuizOption", b =>
@@ -441,20 +438,10 @@ namespace Backend.Migrations
 
                     b.HasIndex("CourseId");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "CourseId")
+                        .IsUnique();
 
                     b.ToTable("UserProgresses");
-                });
-
-            modelBuilder.Entity("Backend.Models.ControlQuestion", b =>
-                {
-                    b.HasOne("Backend.Models.Lesson", "Lesson")
-                        .WithMany()
-                        .HasForeignKey("LessonId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Lesson");
                 });
 
             modelBuilder.Entity("Backend.Models.Course", b =>
@@ -468,6 +455,25 @@ namespace Backend.Migrations
                     b.Navigation("Mentor");
                 });
 
+            modelBuilder.Entity("Backend.Models.CourseEnrollment", b =>
+                {
+                    b.HasOne("Backend.Models.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Backend.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Backend.Models.CourseModule", b =>
                 {
                     b.HasOne("Backend.Models.Course", "Course")
@@ -479,13 +485,47 @@ namespace Backend.Migrations
                     b.Navigation("Course");
                 });
 
-            modelBuilder.Entity("Backend.Models.Feedback", b =>
+            modelBuilder.Entity("Backend.Models.CourseReview", b =>
                 {
+                    b.HasOne("Backend.Models.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("Backend.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Course");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Backend.Models.Feedback", b =>
+                {
+                    b.HasOne("Backend.Models.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Backend.Models.LessonBlock", "LessonBlock")
+                        .WithMany()
+                        .HasForeignKey("LessonBlockId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Backend.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+
+                    b.Navigation("LessonBlock");
 
                     b.Navigation("User");
                 });
@@ -527,17 +567,6 @@ namespace Backend.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Backend.Models.QuestionOption", b =>
-                {
-                    b.HasOne("Backend.Models.ControlQuestion", "ControlQuestion")
-                        .WithMany("Options")
-                        .HasForeignKey("ControlQuestionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ControlQuestion");
                 });
 
             modelBuilder.Entity("Backend.Models.QuizOption", b =>
@@ -587,11 +616,6 @@ namespace Backend.Migrations
                     b.Navigation("Course");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Backend.Models.ControlQuestion", b =>
-                {
-                    b.Navigation("Options");
                 });
 
             modelBuilder.Entity("Backend.Models.Course", b =>

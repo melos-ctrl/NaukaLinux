@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Turnstile } from '@sctg/turnstile-vue3'
 import AuthCard from '@/components/AuthCard.vue'
+import { getHomeRouteForRole } from '@/utils/roles'
 
 
 const username = ref('')
@@ -22,6 +23,17 @@ const resetTurnstile = () => {
 }
 
 const router = useRouter()
+const route = useRoute()
+
+// Jeśli użytkownik został odesłany na logowanie z chronionej strony (?redirect=/sandbox),
+// wracamy tam. Przyjmujemy tylko ścieżki wewnętrzne, żeby nie dało się przekierować na obcą domenę.
+const getSafeRedirect = (): string | null => {
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')) {
+    return redirect
+  }
+  return null
+}
 
 const handleLogin = async () => {
   if (!turnstileToken.value) {
@@ -45,15 +57,14 @@ const handleLogin = async () => {
     if (response.ok) {
       const data = await response.json()
 
+      const role: string = data.role || 'student'
+
       localStorage.setItem('token', data.token)
+      localStorage.setItem('role', role)
 
-      if (data.role) {
-        localStorage.setItem('role', data.role)
-      } else {
-        localStorage.setItem('role', 'student')
-      }
-
-      router.push('/')
+      // Od razu do panelu użytkownika / mentora / admina.
+      // replace zamiast push - przycisk "wstecz" nie wraca na formularz logowania.
+      router.replace(getSafeRedirect() ?? getHomeRouteForRole(role))
     } else {
       const errorText = await response.text()
       let errorData: { message?: string } = {}

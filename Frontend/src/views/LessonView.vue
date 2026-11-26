@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import RemoteDesktop from '../components/RemoteDesktop.vue';
 import MarkdownContent from '@/components/MarkdownContent.vue';
+import CourseReviews from '@/components/CourseReviews.vue';
 
 interface QuizOption {
   id: number;
@@ -83,6 +84,8 @@ interface Task {
 const route = useRoute();
 const router = useRouter();
 
+const courseId = computed(() => Number(route.params.id));
+
 const isLoading = ref(true);
 const errorMessage = ref('');
 const courseTitle = ref('');
@@ -103,12 +106,15 @@ const isSummaryOpen = ref(false);
 const isSummaryLoading = ref(false);
 const summaryError = ref('');
 
-// Modal do zgłaszania błędów w zadaniach i wysyłania opinii
+// Modal do zgłaszania błędów w zadaniach i wysyłania prywatnych uwag do mentora
 const isFeedbackModalOpen = ref(false);
 const feedbackBlockId = ref<number | null>(null);
 const feedbackMessage = ref('');
 const feedbackSuccess = ref('');
 const feedbackError = ref('');
+
+// Modal z publicznymi ocenami kursu (gwiazdki + komentarz)
+const isReviewsModalOpen = ref(false);
 
 const currentTask = computed(() => tasks.value[currentStepIndex.value]);
 const progressPercentage = computed(() =>
@@ -507,10 +513,17 @@ onMounted(() => {
               Wszystkie pytania rozwiązane poprawnie. Brawo!
             </p>
 
+            <!-- Ocena kursu (gwiazdki + komentarz) -->
+            <section class="flex flex-col gap-3 border-t border-silver/30 pt-6">
+              <h3 class="text-xl font-bold text-floral-white">★ Oceń kurs</h3>
+              <p class="-mt-2 text-sm text-silver">Twoja ocena pomoże innym wybrać kurs, a autorowi go ulepszyć.</p>
+              <CourseReviews :course-id="courseId" />
+            </section>
+
             <!-- Akcje -->
             <section class="flex flex-col gap-3 sm:flex-row">
               <button type="button" @click="openFeedbackModal(null)" class="btn btn-outline-dark flex-1">
-                ★ Oceń kurs
+                ✉ Uwagi dla mentora
               </button>
               <button type="button" @click="reviewCourseFromStart" class="btn btn-outline-dark flex-1">
                 Przejrzyj kurs od początku
@@ -534,8 +547,11 @@ onMounted(() => {
                 <h2 class="line-clamp-2 text-xl font-bold text-floral-white">Lekcja {{ currentStepIndex + 1 }}: {{ currentTask.lessonTitle }}</h2>
               </div>
               <div class="flex shrink-0 flex-col gap-2">
+                <button type="button" @click="isReviewsModalOpen = true" class="btn btn-outline-dark btn-sm">
+                  ★ Oceń kurs
+                </button>
                 <button type="button" @click="openFeedbackModal(null)" class="btn btn-outline-dark btn-sm">
-                  ★ Oceń / Wyślij opinię
+                  ✉ Uwagi dla mentora
                 </button>
                 <button type="button" @click="openSummary" class="btn btn-outline-dark btn-sm">
                   Podsumowanie
@@ -740,14 +756,44 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- MODAL ZGŁASZANIA BŁĘDU / OPINII -->
+    <!-- MODAL Z OCENAMI KURSU -->
+    <div
+      v-if="isReviewsModalOpen"
+      class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4"
+      @click.self="isReviewsModalOpen = false"
+    >
+      <div
+        class="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl border border-silver/40 bg-charcoal-brown shadow-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reviews-title"
+      >
+        <div class="flex items-start justify-between gap-4 border-b border-silver/30 p-5">
+          <div class="min-w-0">
+            <p class="text-xs font-semibold uppercase tracking-wider text-spicy-paprika">Oceń kurs</p>
+            <h3 id="reviews-title" class="truncate text-xl font-bold text-floral-white">{{ courseTitle }}</h3>
+          </div>
+          <button
+            type="button"
+            @click="isReviewsModalOpen = false"
+            class="shrink-0 rounded-lg px-2 text-2xl leading-none text-silver hover:text-floral-white"
+            aria-label="Zamknij"
+          >×</button>
+        </div>
+        <div class="overflow-y-auto p-5">
+          <CourseReviews :course-id="courseId" />
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL ZGŁASZANIA BŁĘDU / UWAG DLA MENTORA -->
     <div v-if="isFeedbackModalOpen" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4">
       <div class="w-full max-w-md rounded-2xl border border-silver/40 bg-charcoal-brown p-6 text-floral-white shadow-xl" role="dialog" aria-modal="true" aria-labelledby="feedback-title">
         <h3 id="feedback-title" class="mb-2 text-xl font-bold">
-          {{ feedbackBlockId ? 'Zgłoś błąd w zadaniu' : 'Wyślij opinię o kursie' }}
+          {{ feedbackBlockId ? 'Zgłoś błąd w zadaniu' : 'Uwagi dla mentora' }}
         </h3>
         <p class="mb-4 text-sm text-silver">
-          {{ feedbackBlockId ? 'Opisz, co nie działa lub jest niejasne w tym pytaniu.' : 'Podziel się swoją opinią na temat materiałów w tym kursie.' }}
+          {{ feedbackBlockId ? 'Opisz, co nie działa lub jest niejasne w tym pytaniu.' : 'Tę wiadomość zobaczy tylko autor kursu. Publiczną ocenę wystawisz przyciskiem „★ Oceń kurs”.' }}
         </p>
 
         <textarea

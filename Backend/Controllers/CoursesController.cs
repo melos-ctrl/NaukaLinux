@@ -35,7 +35,12 @@ public class CoursesController : ControllerBase
                 c.Title,
                 c.Description,
                 c.MentorId,
-                MentorName = c.Mentor != null ? c.Mentor.Username : "Nieznany autor"
+                MentorName = c.Mentor != null ? c.Mentor.Username : "Nieznany autor",
+                // Średnia ocen (null, gdy kurs nie ma jeszcze żadnej oceny) i liczba ocen
+                AverageRating = _context.CourseReviews
+                    .Where(review => review.CourseId == c.Id)
+                    .Average(review => (double?)review.Rating),
+                ReviewCount = _context.CourseReviews.Count(review => review.CourseId == c.Id)
             })
             .ToListAsync();
 

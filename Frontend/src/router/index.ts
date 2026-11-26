@@ -14,6 +14,7 @@ import SettingsView from '@/views/SettingsView.vue';
 import AdminView from '@/views/AdminView.vue';
 import BeAMentorView from '@/views/BeAMentorView.vue';
 import VerifyEmailView from '@/views/VerifyEmailView.vue';
+import { getHomeRouteForRole } from '@/utils/roles';
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -36,11 +37,13 @@ const routes: Array<RouteRecordRaw> = [
     path: "/login",
     name: "login",
     component: LoginView,
+    meta: { guestOnly: true },
   },
   {
     path: "/register",
     name: "register",
     component: RegisterView,
+    meta: { guestOnly: true },
   },
   {
     path: "/verify-email",
@@ -124,17 +127,22 @@ router.beforeEach((to) => {
   const token = localStorage.getItem('token')
   const role = localStorage.getItem('role')?.toLowerCase()
 
+  // Zalogowany użytkownik nie musi widzieć logowania/rejestracji - od razu do jego panelu.
+  if (to.meta.guestOnly && token) {
+    return getHomeRouteForRole(role)
+  }
+
   const needsLogin = to.meta.requiresAuth || to.meta.requiresCourseRole || to.meta.requiresAdmin
   if (needsLogin && !token) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
 
   if (to.meta.requiresAdmin && role !== 'admin') {
-    return { name: 'dashboard' }
+    return getHomeRouteForRole(role)
   }
 
   if (to.meta.requiresCourseRole && role !== 'admin' && role !== 'mentor') {
-    return { name: 'dashboard' }
+    return getHomeRouteForRole(role)
   }
 
   return true
